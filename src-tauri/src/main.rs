@@ -139,6 +139,7 @@ fn main() {
             commands::next,
             commands::previous,
             commands::set_playback_modes,
+            commands::set_autoplay,
             // Queue
             commands::get_queue,
             commands::add_to_queue,

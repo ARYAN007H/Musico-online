@@ -20,6 +20,7 @@ const Bridge = (() => {
   const listeners = {};
   const mockQueue = [];
   const mockLikes = new Set();
+  const mockSettings = { autoplay: true };
 
   function emit(event, payload) {
     (listeners[event] || []).forEach((cb) => cb({ event, payload }));
@@ -171,9 +172,13 @@ const Bridge = (() => {
           smart_recs: true, eq_enabled: true, eq_preset: 'Flat', normalization: 'Off',
           crossfade_enabled: false, crossfade_duration: 3.0, library_view_mode: 'list',
           shuffle_mode: 0, repeat_mode: 0, theme: 'dark',
+          autoplay: mockSettings.autoplay,
         });
       case 'save_settings':
         return Promise.resolve(null);
+      case 'set_autoplay':
+        mockSettings.autoplay = !!(args && args.enabled);
+        return Promise.resolve(true);
       case 'pick_folder':
       case 'set_music_folder':
       case 'set_playback_modes':
@@ -211,5 +216,8 @@ const Bridge = (() => {
     }
   }
 
-  return { invoke, listen, isTauri, DEMO_SONGS, setErrorHandler: (fn) => { onError = fn; } };
+  const api = { invoke, listen, isTauri, DEMO_SONGS, setErrorHandler: (fn) => { onError = fn; } };
+  // Modules (Preact shell) resolve globals via window, not script scope.
+  window.Bridge = api;
+  return api;
 })();
