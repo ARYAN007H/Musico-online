@@ -6,8 +6,9 @@ same public technique as Metrolist / InnerTune / RiMusic (InnerTube + yt-dlp); i
 **not** in the offline Musico release, and is for personal use.
 
 <p align="center">
-  <img src="docs/screenshots/library-light.png" width="49%" alt="Musico Online — light theme"/>
-  <img src="docs/screenshots/library-dark.png" width="49%" alt="Musico Online — dark theme"/>
+  <img src="docs/screenshots/library-light.png" width="42%" alt="Musico Online — light theme"/>
+  <img src="docs/screenshots/library-dark.png" width="42%" alt="Musico Online — dark theme"/>
+  <img src="docs/screenshots/library-compact.png" width="13.5%" alt="Musico Online — compact width"/>
 </p>
 
 ## Robustness & capability notes (v2 polish, 2026-10-28)

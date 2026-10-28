@@ -57,16 +57,6 @@ const page = await browser.newPage();
 await page.goto(`${BASE}/index.html`);
 await page.waitForTimeout(800);
 
-// Probe element: text colored like each token role, on each surface tier.
-const probe = `
-  <div id="contrast-probe" style="position:absolute; visibility:hidden;">
-    <span id="p-primary"></span><span id="p-secondary"></span>
-    <span id="p-muted"></span><span id="p-accent"></span>
-  </div>`;
-await page.evaluate((html) => {
-  document.body.insertAdjacentHTML('beforeend', html);
-}, probe);
-
 const results = [];
 let failures = 0;
 
@@ -89,11 +79,6 @@ for (const theme of THEMES) {
         secondary: cs.getPropertyValue('--text-secondary').trim(),
         muted: cs.getPropertyValue('--text-muted').trim(),
       };
-      const probeEl = (id) => {
-        const el = document.getElementById(id);
-        return getComputedStyle(el).color;
-      };
-      void probeEl; // probe spans exist for future direct-element checks
       return { surfaces, texts };
     });
 

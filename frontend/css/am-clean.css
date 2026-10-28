@@ -75,10 +75,16 @@
   background: transparent;
   transition: background var(--duration-fast) var(--ease-out);
 }
-.song-row:hover { background: var(--accent-tint); }
+.song-row:hover {
+  background: var(--accent-tint);
+  box-shadow: none;
+  transform: none;
+}
 .song-row[aria-current="true"] {
   background: var(--accent-tint-strong);
   border-bottom-color: transparent;
+  box-shadow: none;
+  transform: none;
 }
 
 /* Album grid cards: raised card + hairline + soft elevation */
@@ -96,27 +102,27 @@
 }
 
 /* ─── Queue view + settings: flatten heavy insets ───────────────────────────── */
-.queue-list .queue-row,
-.settings-panel .settings-card {
+/* Queue rows render as .song-row (covered above). Settings cards are .s-card.  */
+.settings-panel .s-card {
   background: var(--surface-card);
   border: var(--border-card);
   border-radius: var(--radius-card);
   box-shadow: var(--elev-card);
 }
 
-/* Buttons: solid accent pill, no dual-shadow */
-.btn-queue-current,
+/* Action buttons: solid accent pill, no dual-shadow */
+#btn-queue-current,
 .browse-search-btn {
   box-shadow: none;
 }
 
 /* ─── Sidebar refinement ─────────────────────────────────────────────────────── */
-.nav-item {
+.side-nav .nav-item {
   border-radius: 8px;
   transition: background var(--duration-fast) var(--ease-out),
               color var(--duration-fast) var(--ease-out);
 }
-.nav-item.active { background: var(--accent-tint-strong); }
+.side-nav .nav-item.active { background: var(--accent-tint-strong); }
 .nav-group-label { letter-spacing: 1.2px; }
 
 /* ─── Panels ─────────────────────────────────────────────────────────────────── */

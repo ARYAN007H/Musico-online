@@ -21,7 +21,7 @@
 
   /* ─── Text Colors ─────────────────────────────────────────────────────── */
   --text-primary:      #2e2620;
-  --text-secondary:    #61564a;  /* ≥5.9:1 on base/raised */
+  --text-secondary:    #61564a;  /* ≥5.2:1 on base/raised */
   --text-muted:        #63584a;  /* ≥4.5:1 on both base and raised (contrast gate verified) */
   --text-disabled:     #a89c8e;  /* decorative/disabled only, never content */
   --text-on-accent:    #ffffff;
