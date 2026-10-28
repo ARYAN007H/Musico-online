@@ -157,6 +157,8 @@ fn main() {
             commands::get_liked_ids,
             // Online (InnerTube + yt-dlp)
             commands::online_search,
+            commands::online_home,
+            commands::online_browse,
             commands::online_play,
             commands::online_enqueue,
             commands::online_available,

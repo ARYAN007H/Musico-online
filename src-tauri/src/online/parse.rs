@@ -427,3 +427,332 @@ mod tests {
         assert_eq!(t.duration_secs, Some(248));
     }
 }
+
+// ---------------------------------------------------------------------------
+// Browse pages (home feed, albums, artists, playlists) — Phase 2 catalog
+// ---------------------------------------------------------------------------
+
+use crate::online::models::{BrowsePage, ItemKind, Shelf, ShelfItem};
+
+/// Parses a browse response into a page.  Shelf containers are collected
+/// by name ANYWHERE in the tree (`musicCarouselShelfRenderer`,
+/// `musicShelfRenderer`, `musicPlaylistShelfRenderer`) so container-path
+/// drift between endpoints doesn't break the parse.  Unknown item renderers
+/// are skipped.
+pub(crate) fn parse_browse_page(json: &serde_json::Value) -> BrowsePage {
+    let mut title = String::new();
+    for header_key in [
+        "musicResponsiveHeaderRenderer",
+        "musicImmersiveHeaderRenderer",
+        "musicDetailHeaderRenderer",
+    ] {
+        let mut headers = Vec::new();
+        collect_values(json, header_key, &mut headers);
+        if let Some(h) = headers.first() {
+            let t = h
+                .pointer("/title/runs")
+                .and_then(|v| v.as_array())
+                .map(|runs| {
+                    runs.iter()
+                        .filter_map(|r| r.get("text").and_then(|t| t.as_str()))
+                        .collect::<Vec<_>>()
+                        .join("")
+                })
+                .unwrap_or_default();
+            if !t.is_empty() {
+                title = t;
+                break;
+            }
+        }
+    }
+
+    let mut shelves = Vec::new();
+    for container_key in [
+        "musicCarouselShelfRenderer",
+        "musicShelfRenderer",
+        "musicPlaylistShelfRenderer",
+    ] {
+        let mut containers = Vec::new();
+        collect_values(json, container_key, &mut containers);
+        for c in containers {
+            if let Some(shelf) = parse_shelf(&c) {
+                if !shelf.items.is_empty() {
+                    shelves.push(shelf);
+                }
+            }
+        }
+    }
+
+    let next_continuation = json
+        .pointer("/continuationContents/sectionListContinuation/continuations/0/nextContinuationData/continuation")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+
+    BrowsePage { title, shelves, next_continuation }
+}
+
+/// Parses one shelf container: header title + mixed card/row contents.
+fn parse_shelf(container: &serde_json::Value) -> Option<Shelf> {
+    let mut title = String::new();
+    let mut header_runs = Vec::new();
+    collect_values(
+        container.get("header").unwrap_or(&serde_json::Value::Null),
+        "runs",
+        &mut header_runs,
+    );
+    if let Some(runs) = header_runs.first() {
+        title = runs
+            .as_array()
+            .map(|rs| {
+                rs.iter()
+                    .filter_map(|r| r.get("text").and_then(|t| t.as_str()))
+                    .collect::<Vec<_>>()
+                    .join("")
+            })
+            .unwrap_or_default();
+    }
+
+    let mut items = Vec::new();
+    let mut two_row = Vec::new();
+    let mut list_row = Vec::new();
+    collect_values(container.get("contents").unwrap_or(&serde_json::Value::Null), "musicTwoRowItemRenderer", &mut two_row);
+    collect_values(container.get("contents").unwrap_or(&serde_json::Value::Null), "musicResponsiveListItemRenderer", &mut list_row);
+    for it in two_row {
+        items.push(parse_two_row_item(it));
+    }
+    for it in list_row {
+        // List rows carry their own overlay play targets; map the generic
+        // list-item parse into a ShelfItem (song/album/artist by nav shape).
+        if let Some(track) = parse_list_item(it) {
+            let nav_browse = it
+                .pointer("/flexColumns/0/musicResponsiveListItemFlexColumnRenderer/text/runs/0/navigationEndpoint/browseEndpoint")
+                .or_else(|| it.pointer("/overlay/musicItemThumbnailOverlayRenderer/content/musicPlayButtonRenderer/playNavigationEndpoint/browseEndpoint"));
+            let browse_id = nav_browse
+                .and_then(|b| b.get("browseId"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let params = nav_browse
+                .and_then(|b| b.get("params"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let kind = ItemKind::from_ids(browse_id.as_deref(), Some(&track.video_id));
+            items.push(ShelfItem {
+                kind,
+                title: track.title,
+                subtitle: format!("{} {}", track.artist, track.album).trim().to_string(),
+                thumbnail: track.thumbnail,
+                video_id: Some(track.video_id),
+                browse_id,
+                params,
+                playlist_id: None,
+            });
+        }
+    }
+
+    if title.is_empty() && items.is_empty() {
+        return None;
+    }
+    Some(Shelf { title, items })
+}
+
+/// Parses one `musicTwoRowItemRenderer` — the standard editorial card
+/// (album / playlist / artist / single covers on home and browse pages).
+fn parse_two_row_item(renderer: &serde_json::Value) -> ShelfItem {
+    let title = runs_text(renderer.get("title").unwrap_or(&serde_json::Value::Null));
+    let subtitle = runs_text(renderer.get("subtitle").unwrap_or(&serde_json::Value::Null));
+
+    let nav = renderer.get("navigationEndpoint").unwrap_or(&serde_json::Value::Null);
+    let browse_id = nav
+        .pointer("/browseEndpoint/browseId")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let params = nav
+        .pointer("/browseEndpoint/params")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let video_id = nav
+        .pointer("/watchEndpoint/videoId")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let playlist_id = nav
+        .pointer("/watchEndpoint/playlistId")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .or_else(|| {
+            browse_id
+                .as_ref()
+                .filter(|b| b.starts_with("VL"))
+                .map(|b| b.trim_start_matches("VL").to_string())
+        });
+
+    let thumbnail = renderer
+        .pointer("/thumbnailRenderer/musicThumbnailRenderer/thumbnail/thumbnails")
+        .and_then(|v| v.as_array())
+        .and_then(|thumbs| thumbs.last())
+        .and_then(|t| t.get("url"))
+        .and_then(|u| u.as_str())
+        .map(|u| upscale_thumbnail(u));
+
+    ShelfItem {
+        kind: ItemKind::from_ids(browse_id.as_deref(), video_id.as_deref()),
+        title,
+        subtitle,
+        thumbnail,
+        video_id,
+        browse_id,
+        params,
+        playlist_id,
+    }
+}
+
+#[cfg(test)]
+mod browse_tests {
+    use super::*;
+
+    /// Raw-string fixtures — literal wire JSON, immune to macro brace-counting.
+    const HOME_PAGE: &str = r#"{
+      "contents": {
+        "singleColumnBrowseResultsRenderer": {
+          "tabs": [{
+            "tabRenderer": {
+              "content": {
+                "sectionListRenderer": {
+                  "contents": [
+                    {
+                      "musicCarouselShelfRenderer": {
+                        "header": {
+                          "musicCarouselShelfHeaderRenderer": {
+                            "title": { "runs": [{ "text": "Late Night Lounge" }] }
+                          }
+                        },
+                        "contents": [
+                          { "musicTwoRowItemRenderer": {
+                              "title": { "runs": [{ "text": "Chill Mix" }] },
+                              "subtitle": { "runs": [{ "text": "Your daily mix" }] },
+                              "navigationEndpoint": { "browseEndpoint": { "browseId": "VLPLabc123", "params": "ggMEgA" } },
+                              "thumbnailRenderer": { "musicThumbnailRenderer": { "thumbnail": { "thumbnails": [
+                                { "url": "https://yt3.googleusercontent.com/cover=w60-h60-l90-rj" } ] } } }
+                          } },
+                          { "musicTwoRowItemRenderer": {
+                              "title": { "runs": [{ "text": "Discovery Mix" }] },
+                              "subtitle": { "runs": [{ "text": "New music for you" }] },
+                              "navigationEndpoint": { "browseEndpoint": { "browseId": "VLPLdef456", "params": "ggMEgA" } },
+                              "thumbnailRenderer": { "musicThumbnailRenderer": { "thumbnail": { "thumbnails": [
+                                { "url": "https://yt3.googleusercontent.com/cover2=w60-h60-l90-rj" } ] } } }
+                          } }
+                        ]
+                      }
+                    },
+                    {
+                      "musicCarouselShelfRenderer": {
+                        "header": {
+                          "musicCarouselShelfHeaderRenderer": {
+                            "title": { "runs": [{ "text": "Trending" }] }
+                          }
+                        },
+                        "contents": [
+                          { "musicTwoRowItemRenderer": {
+                              "title": { "runs": [{ "text": "Top Hits" }] },
+                              "subtitle": { "runs": [{ "text": "Various Artists" }] },
+                              "navigationEndpoint": { "browseEndpoint": { "browseId": "MPREb_album1" } },
+                              "thumbnailRenderer": { "musicThumbnailRenderer": { "thumbnail": { "thumbnails": [
+                                { "url": "https://yt3.googleusercontent.com/cover3=w60-h60-l90-rj" } ] } } }
+                          } }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }]
+        }
+      }
+    }"#;
+
+    #[test]
+    fn parses_home_carousel_shelves() {
+        let json: serde_json::Value = serde_json::from_str(HOME_PAGE).unwrap();
+        let page = parse_browse_page(&json);
+        assert_eq!(page.shelves.len(), 2);
+        assert_eq!(page.shelves[0].title, "Late Night Lounge");
+        assert_eq!(page.shelves[0].items.len(), 2);
+        let item = &page.shelves[0].items[0];
+        assert_eq!(item.kind, crate::online::models::ItemKind::Playlist);
+        assert_eq!(item.title, "Chill Mix");
+        assert_eq!(item.subtitle, "Your daily mix");
+        assert_eq!(item.browse_id.as_deref(), Some("VLPLabc123"));
+        assert!(item.thumbnail.as_deref().unwrap().contains("w544"));
+        assert_eq!(page.shelves[1].items[0].kind, crate::online::models::ItemKind::Album);
+        assert!(item.to_track().is_none(), "playlist cards are not directly playable");
+    }
+
+    #[test]
+    fn classifies_item_kinds_by_id_shape() {
+        use crate::online::models::ItemKind;
+        assert_eq!(ItemKind::from_ids(Some("MPREb_x"), None), ItemKind::Album);
+        assert_eq!(ItemKind::from_ids(Some("VLPLx"), None), ItemKind::Playlist);
+        assert_eq!(ItemKind::from_ids(Some("PLx"), None), ItemKind::Playlist);
+        assert_eq!(ItemKind::from_ids(Some("UCxyz"), None), ItemKind::Artist);
+        assert_eq!(ItemKind::from_ids(None, Some("dQw4w9WgXcQ")), ItemKind::Song);
+        assert_eq!(ItemKind::from_ids(None, None), ItemKind::Unknown);
+    }
+
+    #[test]
+    fn playable_items_convert_to_tracks() {
+        let json: serde_json::Value = serde_json::from_str(r#"{
+          "title": { "runs": [{ "text": "One More Time" }] },
+          "subtitle": { "runs": [{ "text": "Daft Punk" }] },
+          "navigationEndpoint": { "watchEndpoint": { "videoId": "wU26xVT_vBU", "playlistId": "RDAMVMwU26xVT_vBU" } },
+          "thumbnailRenderer": { "musicThumbnailRenderer": { "thumbnail": { "thumbnails": [
+            { "url": "https://yt3.googleusercontent.com/x=w60-h60-l90-rj" } ] } } }
+        }"#).unwrap();
+        let item = parse_two_row_item(&json);
+        assert_eq!(item.kind, crate::online::models::ItemKind::Song);
+        assert_eq!(item.playlist_id.as_deref(), Some("RDAMVMwU26xVT_vBU"));
+        let track = item.to_track().expect("song converts");
+        assert_eq!(track.video_id, "wU26xVT_vBU");
+        assert_eq!(track.artist, "Daft Punk");
+    }
+
+    #[test]
+    fn skips_empty_and_garbage_shelves() {
+        let json: serde_json::Value = serde_json::from_str(r#"{
+          "contents": {
+            "singleColumnBrowseResultsRenderer": { "tabs": [{
+              "tabRenderer": { "content": { "sectionListRenderer": { "contents": [
+                { "garbage": true },
+                { "musicCarouselShelfRenderer": { "contents": [] } }
+              ]}}}
+            }]}}
+          }"#).unwrap();
+        let page = parse_browse_page(&json);
+        assert!(page.shelves.is_empty());
+    }
+
+    #[test]
+    fn parses_page_header_title_and_song_rows() {
+        let json: serde_json::Value = serde_json::from_str(r#"{
+          "header": { "musicImmersiveHeaderRenderer": {
+            "title": { "runs": [{ "text": "Daft Punk" }] } } },
+          "contents": {
+            "singleColumnBrowseResultsRenderer": { "tabs": [{
+              "tabRenderer": { "content": { "sectionListRenderer": { "contents": [{
+                "musicShelfRenderer": {
+                  "contents": [{ "musicResponsiveListItemRenderer": {
+                    "playlistItemData": { "videoId": "v1" },
+                    "flexColumns": [
+                      { "musicResponsiveListItemFlexColumnRenderer": {
+                          "text": { "runs": [{ "text": "A Song", "navigationEndpoint": { "watchEndpoint": { "videoId": "v1" } } }] } } }
+                    ] } }]
+                }
+              }]}}}
+            }]}}
+          }"#).unwrap();
+        let page = parse_browse_page(&json);
+        assert_eq!(page.title, "Daft Punk");
+        assert_eq!(page.shelves.len(), 1);
+        assert_eq!(page.shelves[0].items[0].kind, crate::online::models::ItemKind::Song);
+        assert!(page.shelves[0].items[0].to_track().is_some());
+    }
+}

@@ -27,6 +27,7 @@
 //! This is ToS-gray-area scraping code: it lives in this standalone repo,
 //! never in the public Musico (offline) release repo.
 
+pub mod catalog;
 pub mod client;
 pub mod models;
 pub mod parse;
@@ -34,7 +35,8 @@ pub mod radio;
 pub mod search;
 pub mod stream;
 
-pub use models::{OnlineTrack, SearchResultPage};
+pub use catalog::{browse, home_feed};
+pub use models::{BrowsePage, ItemKind, OnlineTrack, SearchResultPage, Shelf, ShelfItem};
 pub use radio::{radio_tracks, remember_radio_play};
 pub use search::search;
 pub use stream::{clear_cache, resolve_stream, to_song_info, yt_dlp_available};
@@ -63,5 +65,16 @@ mod live_tests {
         assert!(radio.len() >= 3, "radio returned {} tracks", radio.len());
         assert!(radio.iter().all(|t| t.video_id != first.video_id), "seed excluded");
         println!("radio: {} related tracks", radio.len());
+    }
+
+    /// Live home feed: the Listen Now shelves (editorial + personalized).
+    #[test]
+    #[ignore = "network test — run with MUSICO_LIVE_TESTS=1"]
+    fn live_home_feed() {
+        let page = home_feed().expect("home feed");
+        assert!(page.shelves.len() >= 2, "home returned {} shelves", page.shelves.len());
+        let items: usize = page.shelves.iter().map(|s| s.items.len()).sum();
+        assert!(items >= 10, "home returned only {items} items");
+        println!("home: {} shelves, {items} items — first: {:?}", page.shelves.len(), page.shelves[0].title);
     }
 }

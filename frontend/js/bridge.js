@@ -157,6 +157,20 @@ const Bridge = (() => {
         emit('queue-changed', [...mockQueue]);
         return Promise.resolve(true);
       }
+      case 'online_home':
+        return Promise.resolve({
+          title: 'Home',
+          shelves: [
+            { title: 'Late Night Lounge', items: DEMO_SONGS.slice(0, 6).map((s) => ({
+                kind: 'playlist', title: s.title, subtitle: s.artist, thumbnail: null,
+                browse_id: 'VLdemo' + s.id, params: null, video_id: null, playlist_id: null })) },
+            { title: 'Trending songs', items: DEMO_SONGS.slice(6).map((s) => ({
+                kind: 'song', title: s.title, subtitle: s.artist, thumbnail: null,
+                browse_id: null, params: null, video_id: 'demo' + s.id, playlist_id: null })) },
+          ],
+        });
+      case 'online_browse':
+        return Promise.resolve({ title: 'Demo page', shelves: [], next_continuation: null });
       case 'online_available':
         return Promise.resolve(true);
       case 'online_clear_cache':

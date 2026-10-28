@@ -62,3 +62,89 @@ mod tests {
         assert_eq!(t.watch_url(), "https://www.youtube.com/watch?v=abc123");
     }
 }
+
+// ─── Catalog objects (browse pages, home feed) ───────────────────────────────
+
+/// What a shelf item links to — derived from the navigation endpoint's id
+/// shape (VL* = playlist, MPREb* = album, UC* = artist, videoId = playable).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ItemKind {
+    Song,
+    Video,
+    Album,
+    Artist,
+    Playlist,
+    Unknown,
+}
+
+impl ItemKind {
+    /// Classifies by InnerTube id conventions.
+    pub fn from_ids(browse_id: Option<&str>, video_id: Option<&str>) -> Self {
+        if video_id.is_some() {
+            return ItemKind::Song;
+        }
+        match browse_id {
+            Some(b) if b.starts_with("MPREb") => ItemKind::Album,
+            Some(b) if b.starts_with("VL") || b.starts_with("PL") => ItemKind::Playlist,
+            Some(b) if b.starts_with("UC") => ItemKind::Artist,
+            _ => ItemKind::Unknown,
+        }
+    }
+}
+
+/// One card/row in a shelf.  Carries its own navigation endpoint so the
+/// frontend (and detail pages) can follow InnerTube links generically —
+/// the navigation-following backbone of Phase 2.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShelfItem {
+    pub kind: ItemKind,
+    pub title: String,
+    #[serde(default)]
+    pub subtitle: String,
+    #[serde(default)]
+    pub thumbnail: Option<String>,
+    /// Playable id (songs / videos).
+    #[serde(default)]
+    pub video_id: Option<String>,
+    /// Detail-page target (albums / artists / playlists).
+    #[serde(default)]
+    pub browse_id: Option<String>,
+    #[serde(default)]
+    pub params: Option<String>,
+    /// Radio/playlist id for playback contexts (RD…/VL…).
+    #[serde(default)]
+    pub playlist_id: Option<String>,
+}
+
+impl ShelfItem {
+    /// Converts a playable item into an [`OnlineTrack`] for the playback path.
+    pub fn to_track(&self) -> Option<OnlineTrack> {
+        self.video_id.as_ref().map(|video_id| OnlineTrack {
+            video_id: video_id.clone(),
+            title: self.title.clone(),
+            artist: self.subtitle.clone(),
+            album: String::new(),
+            duration_secs: None,
+            thumbnail: self.thumbnail.clone(),
+            cached: false,
+        })
+    }
+}
+
+/// A titled horizontal shelf (carousel or list) from a browse page.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Shelf {
+    pub title: String,
+    pub items: Vec<ShelfItem>,
+}
+
+/// A parsed browse page: header title + every shelf found in the response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrowsePage {
+    #[serde(default)]
+    pub title: String,
+    pub shelves: Vec<Shelf>,
+    #[serde(default)]
+    pub next_continuation: Option<String>,
+}
