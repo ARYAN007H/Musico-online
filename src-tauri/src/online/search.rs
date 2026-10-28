@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
-use super::client::{http_client, innertube_context, innertube_post, SEARCH_URL};
+use super::client::{innertube_context, innertube_post, SEARCH_URL};
 use super::models::SearchResultPage;
 use super::parse::parse_search_page;
 
@@ -47,8 +47,7 @@ pub fn search(
         }
     }
 
-    let client = http_client()?;
-    let json = innertube_post(&client, SEARCH_URL, body)?;
+    let json = innertube_post(SEARCH_URL, body)?;
     let page = parse_search_page(&json);
 
     if page.tracks.is_empty() && page.next_continuation.is_none() && continuation.is_none() {

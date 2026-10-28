@@ -37,10 +37,7 @@ pub mod stream;
 pub use models::{OnlineTrack, SearchResultPage};
 pub use radio::{radio_tracks, remember_radio_play};
 pub use search::search;
-pub use stream::{
-    cache_cover_art, cache_dir, clear_cache, probe_duration_secs, prune_cache, resolve_stream,
-    to_song_info, yt_dlp_available,
-};
+pub use stream::{clear_cache, resolve_stream, to_song_info, yt_dlp_available};
 
 #[cfg(test)]
 mod live_tests {
