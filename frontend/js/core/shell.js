@@ -73,7 +73,7 @@ function Sidebar() {
       </svg>
       <div class="brand-text">
         <div class="brand-name">MUSICO</div>
-        <div class="brand-sub">v0.6.1</div>
+        <div class="brand-sub">v0.6.2</div>
       </div>
     </div>
     <nav class="side-nav" aria-label="Main">

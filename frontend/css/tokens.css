@@ -21,8 +21,8 @@
 
   /* ─── Text Colors ─────────────────────────────────────────────────────── */
   --text-primary:      #2e2620;
-  --text-secondary:    #6b5f52;  /* ≈5:1 on raised surfaces */
-  --text-muted:        #7a6e5f;  /* ≈4.6:1 — contrast floor for metadata text */
+  --text-secondary:    #61564a;  /* ≥5.2:1 on base/raised */
+  --text-muted:        #63584a;  /* ≥4.5:1 on both base and raised (contrast gate verified) */
   --text-disabled:     #a89c8e;  /* decorative/disabled only, never content */
   --text-on-accent:    #ffffff;
 
