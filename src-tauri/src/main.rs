@@ -156,6 +156,7 @@ fn main() {
             // Online (InnerTube + yt-dlp)
             commands::online_search,
             commands::online_play,
+            commands::online_enqueue,
             commands::online_available,
             commands::online_clear_cache,
             // Stats & playlists

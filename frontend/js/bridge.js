@@ -115,6 +115,7 @@ const Bridge = (() => {
         return Promise.resolve([...mockLikes]);
       case 'online_search': {
         const q = (args?.query || '').toLowerCase();
+        if (args?.continuation) return Promise.resolve({ tracks: [], next_continuation: null });
         const found = DEMO_SONGS.filter(s =>
           s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q));
         const results = (found.length ? found : DEMO_SONGS).map((s, i) => ({
@@ -124,8 +125,10 @@ const Bridge = (() => {
           album: s.album,
           duration_secs: s.duration_secs,
           thumbnail: null,
+          cached: false,
         }));
-        return Promise.resolve(results);
+        // Page-1 mock keeps a fake continuation so "Load more" is testable.
+        return Promise.resolve({ tracks: results, next_continuation: 'mock-cont-2' });
       }
       case 'online_play': {
         const t = args?.track || {};
@@ -141,6 +144,16 @@ const Bridge = (() => {
                   album: t.album || '', duration_secs: t.duration_secs || 0,
                   file_path: `/mock/${t.video_id}.m4a` },
         });
+        return Promise.resolve(true);
+      }
+      case 'online_enqueue': {
+        const t2 = args?.track || {};
+        mockQueue.push({
+          id: `yt:${t2.video_id}`, title: t2.title, artist: t2.artist,
+          album: t2.album || '', duration_secs: t2.duration_secs || 0,
+          file_path: `/mock/${t2.video_id}.m4a`,
+        });
+        emit('queue-changed', [...mockQueue]);
         return Promise.resolve(true);
       }
       case 'online_available':

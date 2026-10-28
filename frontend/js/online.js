@@ -1,34 +1,64 @@
 /* ══════════════════════════════════════════════════════════════════════════════
    MUSICO ONLINE — Browse (YouTube Music via InnerTube) + fullscreen vinyl
    Depends on: Bridge, App (for artFor/showToast/navigateTo). Loaded after app.js.
+
+   Robust/advanced behaviour:
+   - live search (350 ms debounce) + Enter; '/' focuses the search box
+   - Songs/Videos filter pill
+   - paginated results ("Load more" via InnerTube continuations)
+   - per-row add-to-queue (background stream resolve) + cached badge
+   - search history chips (localStorage, capped at 6)
+   - stale-response guards for racing searches
    ══════════════════════════════════════════════════════════════════════════════ */
 
 const Online = (() => {
   // videoId → OnlineTrack, filled by search; lets us decorate the now-playing
   // UI with the real thumbnail when the engine reports a `yt:<id>` song.
   const trackMap = new Map();
-  let searchSeq = 0;
+  let searchSeq = 0;        // guard: only the newest search may render
+  let nextContinuation = null;
+  let lastQuery = '';
+  let lastVideos = false;
+  let loadingMore = false;
+  let debounceTimer = null;
+
+  const HISTORY_KEY = 'musico-search-history';
+  const DEBOUNCE_MS = 350;
 
   // ─── Search ─────────────────────────────────────────────────────────────────
-  async function search(query, { videos = false } = {}) {
+  async function search(query, { videos = false, continuation = null, append = false } = {}) {
     const seq = ++searchSeq;
-    setStatus('Searching YouTube Music…');
-    renderSkeleton();
+    lastQuery = query;
+    lastVideos = videos;
+
+    if (!append) {
+      nextContinuation = null;
+      setStatus('Searching YouTube Music…');
+      renderSkeleton();
+    } else {
+      setLoadMoreState(true);
+    }
+
     try {
-      const tracks = await Bridge.invoke('online_search', { query, videos });
+      const page = await Bridge.invoke('online_search', { query, videos, continuation });
       if (seq !== searchSeq) return; // a newer search superseded this one
-      if (!tracks || !tracks.length) {
-        setStatus(`No results for “${query}”.`);
-        renderResults([]);
-        return;
+
+      const tracks = page?.tracks || [];
+      nextContinuation = page?.next_continuation || null;
+
+      if (append) {
+        appendResults(tracks);
+      } else {
+        tracks.forEach((t) => trackMap.set(t.video_id, t));
+        renderResults(tracks);
+        setStatus(tracks.length ? `${tracks.length} results` : `No results for “${query}”.`);
       }
-      tracks.forEach((t) => trackMap.set(t.video_id, t));
-      setStatus(`${tracks.length} results`);
-      renderResults(tracks);
+      if (tracks.length) pushHistory(query);
+      setLoadMoreState(false);
     } catch (e) {
       if (seq !== searchSeq) return;
-      setStatus(`Search failed: ${e}`);
-      renderResults([]);
+      if (append) setLoadMoreState(false);
+      else { setStatus(`Search failed: ${e}`); renderResults([]); }
     }
   }
 
@@ -37,12 +67,117 @@ const Online = (() => {
     if (el) el.textContent = text || '';
   }
 
+  // ─── Search history (localStorage) ──────────────────────────────────────────
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+
+  function pushHistory(query) {
+    const q = query.trim();
+    if (!q) return;
+    let hist = loadHistory().filter((h) => h.toLowerCase() !== q.toLowerCase());
+    hist.unshift(q);
+    hist = hist.slice(0, 6);
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); } catch (e) {}
+    renderHistoryChips();
+  }
+
+  function renderHistoryChips() {
+    const wrap = document.getElementById('browse-hints');
+    if (!wrap) return;
+    const hist = loadHistory();
+    const defaults = ['lofi beats', 'synthwave 80s', 'acoustic covers'];
+    const queries = [...new Set([...hist, ...defaults])].slice(0, 7);
+    wrap.innerHTML =
+      '<span class="browse-hint-label">' + (hist.length ? 'Recent' : 'Try') + '</span>' +
+      queries.map((q) =>
+        `<button type="button" class="browse-chip" data-q="${escapeAttr(q)}">${escapeHtml(q)}</button>`
+      ).join('');
+    wrap.querySelectorAll('.browse-chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const input = document.getElementById('browse-input');
+        input.value = chip.dataset.q;
+        search(chip.dataset.q, { videos: currentVideos() });
+      });
+    });
+  }
+
+  function currentVideos() {
+    const toggle = document.getElementById('browse-videos-toggle');
+    return !!(toggle && toggle.classList.contains('active'));
+  }
+
   // ─── Results rendering ──────────────────────────────────────────────────────
   function fmtTime(secs) {
     if (!secs && secs !== 0) return '';
     const m = Math.floor(secs / 60);
     const s = String(Math.floor(secs % 60)).padStart(2, '0');
     return `${m}:${s}`;
+  }
+
+  function rowHtml(t, i) {
+    const dur = t.duration_secs ? fmtTime(t.duration_secs) : '';
+    const sub = [t.artist, t.album, dur].filter(Boolean).join(' · ');
+    const thumb = t.thumbnail
+      ? `<img class="browse-thumb" src="${escapeAttr(t.thumbnail)}" alt="" loading="lazy"
+             onerror="this.outerHTML='<div class=&quot;browse-thumb browse-thumb-fallback&quot;>${svgMusic()}</div>'"/>`
+      : `<div class="browse-thumb browse-thumb-fallback">${svgMusic()}</div>`;
+    const badge = t.cached ? '<span class="browse-cached-badge" title="Already downloaded">cached</span>' : '';
+    return `
+      <div class="browse-row" role="button" tabindex="0" data-video-id="${escapeAttr(t.video_id)}" data-idx="${i}"
+           aria-label="Play ${escapeAttr(t.title)} by ${escapeAttr(t.artist)}">
+        ${thumb}
+        <div class="browse-meta">
+          <div class="browse-row-title">${escapeHtml(t.title)} ${badge}</div>
+          <div class="browse-row-sub">${escapeHtml(sub)}</div>
+        </div>
+        <button class="browse-enqueue" title="Add to queue (downloads in background)"
+                aria-label="Add ${escapeAttr(t.title)} to queue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="browse-play" title="Play now" aria-label="Play ${escapeAttr(t.title)}">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="8,5 20,12 8,19"/></svg>
+        </button>
+      </div>`;
+  }
+
+  function bindRows(scope) {
+    scope.querySelectorAll('.browse-row').forEach((row) => {
+      const track = trackMap.get(row.dataset.videoId);
+      const enqueueBtn = row.querySelector('.browse-enqueue');
+      enqueueBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        enqueueTrack(track, enqueueBtn);
+      });
+      const activate = () => playTrack(track, row);
+      row.addEventListener('click', activate);
+      row.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+      });
+    });
+  }
+
+  function renderResults(tracks) {
+    const wrap = document.getElementById('browse-results');
+    if (!wrap) return;
+    if (!tracks.length) { wrap.innerHTML = ''; updateLoadMore(); return; }
+    wrap.innerHTML = tracks.map((t, i) => rowHtml(t, i)).join('');
+    bindRows(wrap);
+    updateLoadMore();
+  }
+
+  function appendResults(tracks) {
+    const wrap = document.getElementById('browse-results');
+    if (!wrap) return;
+    tracks.forEach((t) => trackMap.set(t.video_id, t));
+    const frag = document.createElement('template');
+    const base = wrap.querySelectorAll('.browse-row').length;
+    frag.innerHTML = tracks.map((t, i) => rowHtml(t, base + i)).join('');
+    wrap.appendChild(frag.content);
+    bindRows(wrap);
+    if (tracks.length) setStatus(`${base + tracks.length} results`);
+    updateLoadMore();
   }
 
   function renderSkeleton() {
@@ -56,48 +191,25 @@ const Online = (() => {
           <div class="skel-box skel-line short"></div>
         </div>
       </div>`).join('');
+    updateLoadMore();
   }
 
-  function renderResults(tracks) {
-    const wrap = document.getElementById('browse-results');
-    if (!wrap) return;
-    if (!tracks.length) {
-      wrap.innerHTML = '';
-      return;
+  function updateLoadMore() {
+    const btn = document.getElementById('browse-load-more');
+    if (!btn) return;
+    btn.style.display = nextContinuation ? 'inline-flex' : 'none';
+  }
+
+  function setLoadMoreState(loading) {
+    loadingMore = loading;
+    const btn = document.getElementById('browse-load-more');
+    if (btn) {
+      btn.disabled = loading;
+      btn.textContent = loading ? 'Loading…' : 'Load more';
     }
-    wrap.innerHTML = tracks.map((t, i) => {
-      const dur = t.duration_secs ? fmtTime(t.duration_secs) : '';
-      const sub = [t.artist, t.album, dur].filter(Boolean).join(' · ');
-      const thumb = t.thumbnail
-        ? `<img class="browse-thumb" src="${escapeAttr(t.thumbnail)}" alt="" loading="lazy"/>`
-        : `<div class="browse-thumb browse-thumb-fallback">${svgMusic()}</div>`;
-      return `
-        <div class="browse-row" role="button" tabindex="0" data-video-id="${escapeAttr(t.video_id)}" data-idx="${i}"
-             aria-label="Play ${escapeAttr(t.title)} by ${escapeAttr(t.artist)}">
-          ${thumb}
-          <div class="browse-meta">
-            <div class="browse-row-title">${escapeHtml(t.title)}</div>
-            <div class="browse-row-sub">${escapeHtml(sub)}</div>
-          </div>
-          <button class="browse-play" title="Play now" aria-label="Play ${escapeAttr(t.title)}">
-            <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="8,5 20,12 8,19"/></svg>
-          </button>
-        </div>`;
-    }).join('');
-
-    wrap.querySelectorAll('.browse-row').forEach((row) => {
-      const track = tracks[Number(row.dataset.idx)];
-      const activate = () => playTrack(track, row);
-      row.addEventListener('click', activate);
-      row.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
-      });
-    });
   }
 
-  function renderSkeletonCleanup() {}
-
-  // ─── Playback ────────────────────────────────────────────────────────────────
+  // ─── Playback / enqueue ──────────────────────────────────────────────────────
   async function playTrack(track, rowEl) {
     if (!track) return;
     trackMap.set(track.video_id, track);
@@ -106,11 +218,15 @@ const Online = (() => {
     App.showToast(`Fetching “${track.title}”…`);
     const ok = await Bridge.invoke('online_play', { track });
     rowEl?.classList.remove('loading');
-    if (ok === null) {
-      // Bridge.invoke already surfaced the error toast
-    } else {
-      App.navigateTo('now-playing');
-    }
+    if (ok !== null) App.navigateTo('now-playing');
+  }
+
+  async function enqueueTrack(track, btnEl) {
+    if (!track) return;
+    if (btnEl) btnEl.classList.add('busy');
+    App.showToast(`Queueing “${track.title}”…`);
+    await Bridge.invoke('online_enqueue', { track });
+    if (btnEl) btnEl.classList.remove('busy');
   }
 
   // ─── online-status events (resolving / playing / error) ─────────────────────
@@ -118,6 +234,8 @@ const Online = (() => {
     const p = e.payload ?? e;
     if (p.stage === 'error') {
       App.showToast(`Online playback failed: ${p.message || 'unknown error'}`);
+    } else if (p.stage === 'radio') {
+      App.showToast('Smart radio: fetching related tracks…');
     }
   });
 
@@ -168,37 +286,67 @@ const Online = (() => {
     }[c]));
   }
 
-  function escapeAttr(s) {
-    return escapeHtml(s);
-  }
+  function escapeAttr(s) { return escapeHtml(s); }
 
   function init() {
     const form = document.getElementById('browse-form');
     const input = document.getElementById('browse-input');
+
     form?.addEventListener('submit', (e) => {
       e.preventDefault();
+      clearTimeout(debounceTimer);
       const q = input.value.trim();
-      if (q) search(q);
-    });
-    document.querySelectorAll('.browse-chip').forEach((chip) => {
-      chip.addEventListener('click', () => {
-        input.value = chip.dataset.q;
-        search(chip.dataset.q);
-      });
+      if (q) search(q, { videos: currentVideos() });
     });
 
+    // Live search: debounce so fast typing fires one request, min 2 chars.
+    input?.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      const q = input.value.trim();
+      if (q.length < 2) return;
+      debounceTimer = setTimeout(() => search(q, { videos: currentVideos() }), DEBOUNCE_MS);
+    });
+
+    // '/' focuses search from anywhere (except while typing in another field).
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'search') return;
+      e.preventDefault();
+      App.navigateTo('browse');
+      input?.focus();
+      input?.select();
+    });
+
+    // Songs / Videos filter pill.
+    const toggle = document.getElementById('browse-videos-toggle');
+    toggle?.addEventListener('click', () => {
+      toggle.classList.toggle('active');
+      const videos = currentVideos();
+      toggle.setAttribute('aria-pressed', String(videos));
+      toggle.textContent = videos ? 'Videos' : 'Songs';
+      const q = input?.value.trim();
+      if (q && q.length >= 2) search(q, { videos });
+    });
+
+    // Load more (InnerTube continuation).
+    document.getElementById('browse-load-more')?.addEventListener('click', () => {
+      if (loadingMore || !nextContinuation || !lastQuery) return;
+      search(lastQuery, { videos: lastVideos, continuation: nextContinuation, append: true });
+    });
+
+    renderHistoryChips();
     setupFullscreen();
 
     // Surface yt-dlp availability once (helps first-run setup).
     Bridge.invoke('online_available').then((ok) => {
       if (!ok) {
-        const el = document.getElementById('browse-status');
-        if (el) el.textContent = 'yt-dlp is not installed — online playback needs it (pacman -S yt-dlp).';
+        setStatus('yt-dlp is not installed — online playback needs it (pacman -S yt-dlp).');
       }
     });
   }
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { search, playTrack, toggleFullscreen, trackMap };
+  return { search, playTrack, enqueueTrack, toggleFullscreen, trackMap };
 })();

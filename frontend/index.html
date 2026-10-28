@@ -18,15 +18,15 @@
 <!-- Asset URLs carry ?v= — bump on frontend changes so the WebKit webview
      can't serve stale cached scripts/styles (bit us once: old bridge.js
      kept breaking IPC after an update). -->
-<link rel="stylesheet" href="css/tokens.css?v=0.4.0"/>
-<link rel="stylesheet" href="css/neumorphic.css?v=0.4.0"/>
-<link rel="stylesheet" href="css/animations.css?v=0.4.0"/>
-<link rel="stylesheet" href="css/layout.css?v=0.4.0"/>
-<link rel="stylesheet" href="css/now-playing.css?v=0.4.0"/>
-<link rel="stylesheet" href="css/library.css?v=0.4.0"/>
-<link rel="stylesheet" href="css/queue.css?v=0.4.0"/>
-<link rel="stylesheet" href="css/settings.css?v=0.4.0"/>
-<link rel="stylesheet" href="css/online.css?v=0.4.0"/>
+<link rel="stylesheet" href="css/tokens.css?v=0.4.1"/>
+<link rel="stylesheet" href="css/neumorphic.css?v=0.4.1"/>
+<link rel="stylesheet" href="css/animations.css?v=0.4.1"/>
+<link rel="stylesheet" href="css/layout.css?v=0.4.1"/>
+<link rel="stylesheet" href="css/now-playing.css?v=0.4.1"/>
+<link rel="stylesheet" href="css/library.css?v=0.4.1"/>
+<link rel="stylesheet" href="css/queue.css?v=0.4.1"/>
+<link rel="stylesheet" href="css/settings.css?v=0.4.1"/>
+<link rel="stylesheet" href="css/online.css?v=0.4.1"/>
 </head>
 <body>
 
@@ -91,16 +91,18 @@
           <button type="submit" class="browse-search-btn" id="browse-submit">Search</button>
         </form>
 
-        <div class="browse-hints" id="browse-hints">
-          <span class="browse-hint-label">Try</span>
-          <button class="browse-chip" data-q="lofi beats">lofi beats</button>
-          <button class="browse-chip" data-q="daft punk">daft punk</button>
-          <button class="browse-chip" data-q="synthwave 80s">synthwave 80s</button>
-          <button class="browse-chip" data-q="aac m4a test tone">something new</button>
+        <div class="browse-toolbar">
+          <button type="button" class="browse-videos-toggle" id="browse-videos-toggle"
+                  aria-pressed="false" title="Toggle between Songs and Videos results">Songs</button>
         </div>
+
+        <div class="browse-hints" id="browse-hints"></div>
 
         <div class="browse-status" id="browse-status" role="status"></div>
         <div class="browse-results" id="browse-results"></div>
+        <button type="button" class="browse-load-more" id="browse-load-more" style="display:none;">
+          Load more
+        </button>
       </div>
     </section>
 
@@ -611,12 +613,12 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      JAVASCRIPT
      ═══════════════════════════════════════════════════════════════════════════ -->
-<script src="js/bridge.js?v=0.4.0"></script>
-<script src="js/app.js?v=0.4.0"></script>
-<script src="js/online.js?v=0.4.0"></script>
-<script src="js/vinyl.js?v=0.4.0"></script>
-<script src="js/knob.js?v=0.4.0"></script>
-<script src="js/seek.js?v=0.4.0"></script>
+<script src="js/bridge.js?v=0.4.1"></script>
+<script src="js/app.js?v=0.4.1"></script>
+<script src="js/online.js?v=0.4.1"></script>
+<script src="js/vinyl.js?v=0.4.1"></script>
+<script src="js/knob.js?v=0.4.1"></script>
+<script src="js/seek.js?v=0.4.1"></script>
 
 </body>
 </html>

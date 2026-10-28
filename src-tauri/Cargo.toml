@@ -37,6 +37,9 @@ souvlaki = { version = "0.8", default-features = false }
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "4", default-features = false, features = ["tokio"] }
 
+[dev-dependencies]
+tempfile = "3"
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

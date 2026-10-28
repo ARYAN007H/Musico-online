@@ -5,6 +5,31 @@ music playback on top of the offline player. Kept private because the streaming 
 ToS-gray-area scraping (same technique as Metrolist / InnerTune / RiMusic), and that code should
 never ship in the public release.
 
+## Robustness & capability notes (v2 polish, 2026-10-28)
+
+- **Auto-refreshed client version** — `client_version()` scrapes the live
+  `INNERTUBE_CLIENT_VERSION` from the music.youtube.com homepage (24 h TTL,
+  stale-value + constant fallbacks), so searches don't die of a frozen version stamp.
+- **Search pagination** — `online_search` returns `{tracks, next_continuation}`;
+  the Browse screen gets a "Load more" button. Both initial and continuation
+  response shapes are parsed.
+- **Online radio** — `radio_tracks()` uses the InnerTube `next` endpoint
+  (`RD<videoId>` playlist) for related tracks. When a `yt:` song ends with an
+  empty queue, the advance policy auto-continues via radio on a worker thread
+  (never blocks the event loop; local-library fallback on failure). A 12-entry
+  ring buffer avoids repeating recent picks.
+- **Download hardening** — per-video locks (no duplicate concurrent downloads),
+  one retry on transient failures, size verification (≥10 KB), hard timeout.
+- **Metadata polish** — duration probed from the downloaded file via symphonia
+  (fixes the seek bar when search metadata lacks it); thumbnails upscaled to
+  544 px and written into the shared cover cache, so `get_cover`, the vinyl
+  label and MPRIS art all work for online songs.
+- **Cache hygiene** — 1 GB LRU prune (mtime-based, `MUSICO_ONLINE_CACHE_MB`
+  env override), hysteresis target 80%.
+- **Search UX** — live debounced search, `/` shortcut, Songs/Videos pill,
+  search-history chips (localStorage), per-row add-to-queue (background
+  resolve), cached badges.
+
 ## What's here
 
 Everything from the main app (Tauri shell, playback engine, recommender v2) plus an online layer:

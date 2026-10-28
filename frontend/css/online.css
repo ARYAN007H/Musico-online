@@ -246,3 +246,84 @@ body.player-fullscreen .fs-close { display: flex; }
 @media (prefers-reduced-motion: reduce) {
   .skel-box { animation: none; }
 }
+
+/* ── Toolbar (Songs/Videos pill) ─────────────────────────────────────────── */
+.browse-toolbar {
+  display: flex;
+  margin-top: var(--space-4, 16px);
+}
+
+.browse-videos-toggle {
+  border: 1px solid var(--border-subtle, transparent);
+  background: var(--surface, #fff);
+  color: var(--text-secondary, inherit);
+  border-radius: 999px;
+  padding: 7px 18px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.browse-videos-toggle.active {
+  background: var(--accent, #9d8cff);
+  color: var(--accent-text, #fff);
+  border-color: transparent;
+}
+
+/* ── Cached badge ────────────────────────────────────────────────────────── */
+.browse-cached-badge {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--accent-text, #fff);
+  background: var(--accent-tint, rgba(157,140,255,0.25));
+}
+
+/* ── Enqueue button ──────────────────────────────────────────────────────── */
+.browse-enqueue {
+  border: none;
+  cursor: pointer;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary, inherit);
+  background: var(--surface-raised, #eee);
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.browse-row:hover .browse-enqueue, .browse-row:focus-visible .browse-enqueue { opacity: 1; }
+.browse-enqueue:hover { color: var(--accent-text, #fff); background: var(--accent, #9d8cff); }
+.browse-enqueue:active { transform: scale(0.94); }
+.browse-enqueue.busy { opacity: 1; animation: enqueue-pulse 1s ease-in-out infinite; }
+.browse-enqueue svg { width: 14px; height: 14px; }
+@keyframes enqueue-pulse { 50% { transform: scale(0.88); opacity: 0.6; } }
+
+/* ── Load more ───────────────────────────────────────────────────────────── */
+.browse-load-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: var(--space-4, 16px) auto 0;
+  padding: 10px 26px;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-text, #fff);
+  background: var(--accent, #9d8cff);
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+.browse-load-more:hover { filter: brightness(1.08); }
+.browse-load-more:active { transform: scale(0.97); }
+.browse-load-more:disabled { opacity: 0.6; cursor: wait; }

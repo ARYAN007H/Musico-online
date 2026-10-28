@@ -2913,6 +2913,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-shell",
  "tauri-plugin-single-instance",
+ "tempfile",
  "tokio",
  "walkdir",
  "zbus 4.4.0",

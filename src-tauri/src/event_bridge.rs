@@ -96,23 +96,23 @@ fn to_payload(ev: &PlaybackEvent) -> serde_json::Value {
     }
 }
 
-/// Auto-advance policy, applied when the current song ends or `next` is hit:/// 1. Pop the next queued song.
-/// 2. Repeat One → replay the current song.
-/// 3. Shuffle / Repeat All (and Smart Radio until C6 wires the recommender)
-///    → play a random library song.
-/// 4. Otherwise stop.
+/// Auto-advance policy, applied when the current song ends or `next` is hit.
 pub(crate) fn advance(handle: &AppHandle) -> bool {
-    advance_from(handle, None)
+    advance_from(handle, None, true)
 }
 
 /// Full playback-advance policy. `after_song` carries the song that just
-/// ended (for listen logging + Smart Radio context).
+/// ended (for listen logging + Smart Radio context).  `allow_online_radio`
+/// guards the fallback path against recursion.
 /// 1. Pop the next queued song.
 /// 2. Repeat One → replay the current song.
-/// 3. Smart Radio (shuffle mode 2 + smart_recs on) → play the top recommendation.
-/// 4. Shuffle / Repeat All → play a random library song.
-/// 5. Otherwise stop.
-fn advance_from(handle: &AppHandle, ended: Option<&PlaybackEvent>) -> bool {
+/// 3. Online song + queue empty → YouTube Music radio (related tracks),
+///    fetched and downloaded on a worker thread so the event loop never stalls.
+/// 4. Smart Radio (shuffle mode 2 + smart_recs on) → play the top local
+///    recommendation.
+/// 5. Shuffle / Repeat All → play a random library song.
+/// 6. Otherwise stop.
+fn advance_from(handle: &AppHandle, ended: Option<&PlaybackEvent>, allow_online_radio: bool) -> bool {
     let state = handle.state::<AppState>();
     let Some(eng) = state.engine.as_ref().cloned() else { return false };
 
@@ -153,7 +153,27 @@ fn advance_from(handle: &AppHandle, ended: Option<&PlaybackEvent>) -> bool {
         }
     }
 
-    // 3. Smart Radio: top recommendation anchored on the current song
+    // 3. Online radio: a `yt:` song can't be meaningfully followed by local
+    //    library picks — continue with YouTube Music related tracks.  The
+    //    fetch + download run on a worker thread (seconds of blocking work
+    //    must not stall the 50 ms event loop); failure falls back to the
+    //    local branches below.
+    if allow_online_radio && repeat != 1 {
+        if let Some(current) = eng.state().current_song {
+            if current.id.starts_with("yt:") {
+                let seed = current.id.trim_start_matches("yt:").to_string();
+                let h = handle.clone();
+                let spawned = std::thread::Builder::new()
+                    .name("online-radio".into())
+                    .spawn(move || online_radio_advance(&h, seed));
+                if spawned.is_ok() {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // 4. Smart Radio: top recommendation anchored on the current song
     if shuffle == 2 && smart_recs {
         if let Some(rec) = &state.recommender {
             let current_id = eng
@@ -182,7 +202,7 @@ fn advance_from(handle: &AppHandle, ended: Option<&PlaybackEvent>) -> bool {
         }
     }
 
-    // 4. Random pick for shuffle / repeat-all
+    // 5. Random pick for shuffle / repeat-all
     if shuffle > 0 || repeat == 2 {
         let library = state.library.lock().unwrap_or_else(|e| e.into_inner());
         if !library.is_empty() {
@@ -193,9 +213,55 @@ fn advance_from(handle: &AppHandle, ended: Option<&PlaybackEvent>) -> bool {
         }
     }
 
-    // 5. Nothing to play — ensure the UI resets
+    // 6. Nothing to play — ensure the UI resets
     let _ = eng.stop();
     false
+}
+
+/// Continues playback after an online track: fetches YouTube Music related
+/// tracks for the seed, resolves + downloads the pick, and plays it through
+/// the queue path.  Runs on the `online-radio` worker thread — everything in
+/// here is allowed to block.  On any failure the local advance policy runs
+/// (with online radio disabled, so no recursion).
+fn online_radio_advance(handle: &AppHandle, seed_video_id: String) {
+    let outcome = (|| -> Result<(), String> {
+        let tracks = crate::online::radio_tracks(&seed_video_id)?;
+        let Some(track) = tracks.first() else {
+            return Err("radio: no related tracks".into());
+        };
+        crate::online::remember_radio_play(&track.video_id);
+        let _ = handle.emit(
+            "online-status",
+            json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
+        );
+        let file =
+            crate::online::resolve_stream(&track.video_id, std::time::Duration::from_secs(240))?;
+        let song = crate::online::to_song_info(track, &file);
+
+        let state = handle.state::<AppState>();
+        let Some(eng) = state.engine.as_ref().cloned() else {
+            return Err("playback engine unavailable".into());
+        };
+        {
+            let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
+            q.push_back(song);
+            let next = q.next().ok_or("enqueue failed")?;
+            drop(q);
+            if !play_and_track(&eng, &state, next) {
+                return Err("failed to start radio playback".into());
+            }
+        }
+        Ok(())
+    })();
+
+    if let Err(e) = outcome {
+        log::warn!("online radio failed: {e}");
+        let _ = handle.emit(
+            "online-status",
+            json!({ "stage": "error", "message": e }),
+        );
+        advance_from(handle, None, false);
+    }
 }
 
 /// Plays a song and notifies the recommender's session tracker, then applies
@@ -252,7 +318,7 @@ pub fn spawn(engine: Arc<PlaybackEngine>, handle: AppHandle) {
                 if ended {
                     // Frontend still gets the SongEnded event; advance first so
                     // the follow-up Playing event arrives immediately after.
-                    advance_from(&handle, Some(&ev));
+                    advance_from(&handle, Some(&ev), true);
                 }
                 #[cfg(target_os = "linux")]
                 update_mpris(&engine, &handle);

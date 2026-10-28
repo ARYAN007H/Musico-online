@@ -513,16 +513,18 @@ pub fn get_liked_ids(state: State<AppState>) -> Vec<String> {
 
 use crate::online::OnlineTrack;
 
-/// Search YouTube Music (InnerTube WEB_REMIX). `videos` selects the Videos
-/// chip instead of Songs.  Runs on the blocking pool — the request takes
-/// ~0.5–2s and sync commands would pin a worker for that long.
+/// Search YouTube Music (InnerTube WEB_REMIX).  `videos` selects the Videos
+/// chip; `continuation` fetches the next page of a previous result.  Runs on
+/// the blocking pool — the request takes ~0.5–2s and sync commands would pin
+/// a worker for that long.
 #[tauri::command]
 pub async fn online_search(
     query: String,
     videos: Option<bool>,
-) -> Result<Vec<OnlineTrack>, String> {
+    continuation: Option<String>,
+) -> Result<crate::online::SearchResultPage, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        crate::online::search(&query, videos.unwrap_or(false))
+        crate::online::search(&query, videos.unwrap_or(false), continuation.as_deref())
     })
     .await
     .map_err(|e| format!("search task failed: {e}"))?
@@ -576,6 +578,48 @@ pub async fn online_play(
             .then_some(())
             .ok_or("Failed to start playback")?;
     }
+    emit_queue(&handle, &state);
+    Ok(())
+}
+
+/// Add an online track to the queue without playing it.  The stream is
+/// resolved in the background so hitting the track in the queue later is
+/// instant; the `online-status` event reports progress.
+#[tauri::command]
+pub async fn online_enqueue(
+    handle: AppHandle,
+    state: State<'_, AppState>,
+    track: OnlineTrack,
+) -> Result<(), String> {
+    let _ = handle.emit(
+        "online-status",
+        serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
+    );
+
+    let video_id = track.video_id.clone();
+    let file = tauri::async_runtime::spawn_blocking(move || {
+        crate::online::resolve_stream(&video_id, std::time::Duration::from_secs(240))
+    })
+    .await
+    .map_err(|e| format!("resolve task failed: {e}"))?;
+
+    let file = match file {
+        Ok(f) => f,
+        Err(e) => {
+            let _ = handle.emit(
+                "online-status",
+                serde_json::json!({ "stage": "error", "videoId": track.video_id, "message": e }),
+            );
+            return Err(e);
+        }
+    };
+
+    let song = crate::online::to_song_info(&track, &file);
+    state
+        .queue
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .push_back(song);
     emit_queue(&handle, &state);
     Ok(())
 }
