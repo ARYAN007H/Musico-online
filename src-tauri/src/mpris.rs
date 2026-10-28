@@ -66,7 +66,7 @@ impl MprisRoot {
     fn identity(&self) -> &str { "Musico" }
 
     #[zbus(property)]
-    fn desktop_entry(&self) -> &str { "musico" }
+    fn desktop_entry(&self) -> &str { crate::identity::DBUS_NAME }
 
     #[zbus(property)]
     fn supported_uri_schemes(&self) -> Vec<&str> { vec!["file"] }
@@ -208,7 +208,7 @@ pub async fn start_mpris_server() -> Result<(mpsc::UnboundedReceiver<MprisComman
         .await?;
 
     connection
-        .request_name("org.mpris.MediaPlayer2.musico")
+        .request_name(crate::identity::MPRIS_NAME)
         .await?;
 
     // Keep the connection alive in the background.

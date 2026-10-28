@@ -29,7 +29,7 @@ pub(crate) fn init(handle: &AppHandle, hwnd: Option<*mut c_void>) {
     let _ = APP.set(handle.clone());
 
     let mut controls = match MediaControls::new(PlatformConfig {
-        dbus_name: "musico",
+        dbus_name: crate::identity::DBUS_NAME,
         display_name: "Musico",
         hwnd,
     }) {

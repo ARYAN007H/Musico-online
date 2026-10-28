@@ -44,7 +44,7 @@ pub fn stable_id(path: &Path) -> String {
 pub fn cover_path(song_id: &str) -> PathBuf {
     dirs::cache_dir()
         .unwrap_or_else(std::env::temp_dir)
-        .join("musico")
+        .join(crate::identity::DATA_SUBDIR)
         .join("covers")
         .join(format!("{song_id}.jpg"))
 }
@@ -75,7 +75,7 @@ struct CacheEntry {
 fn cache_file() -> PathBuf {
     dirs::cache_dir()
         .unwrap_or_else(std::env::temp_dir)
-        .join("musico")
+        .join(crate::identity::DATA_SUBDIR)
         .join("library.json")
 }
 

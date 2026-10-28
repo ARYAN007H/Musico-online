@@ -4,7 +4,7 @@
 > polish, and intelligence of Apple Music — Home/Listen Now editorial feed, Browse genres,
 > artist/album pages, radio, full-library search, Playing Next queue, downloads/offline, and
 > taste-driven recommendations — running entirely on free sources (YouTube Music catalog via
-> InnerTube ≈ 100M+ songs, streams via yt-dlp). No ads, no accounts, no tracking. Private repo.
+> InnerTube ≈ 100M+ songs, streams via yt-dlp). No ads, no accounts, no tracking.
 >
 > This document is the plan of record. Each phase ends at a hard gate; do not advance with a
 > red gate. Phases are sized so one focused session can land one or two chunks.
@@ -103,7 +103,7 @@ portable kill). Batch download = N sequential resolves at ≤2 concurrent, same 
 | Rate limiting / IP throttle | medium | slow fetches | request coalescing, TTL caches (shipped for search), self-throttle (max 2 concurrent network ops), jittered backoff |
 | Genre/home content geo-locked or empty | low | empty shelves | empty-state UI per shelf, never a blank page |
 | yt-dlp breaks | certain over time | playback fails | surfaced install/update hint (shipped); version check on boot |
-| Legal exposure | inherent | repo takedown | private repo, personal use, no public distribution — already policy |
+| Legal exposure | inherent | repo takedown | standalone repo, personal-use framing (Metrolist/InnerTune precedent); streaming code stays OUT of the offline Musico release repo |
 
 ---
 
@@ -281,7 +281,7 @@ Each phase = 1–3 sessions. Phases 2–4 are where "millions of albums" becomes
 
 ## 8. Verification protocol (every session)
 1. `cargo test --workspace` green (engine e2e needs `scripts/gen_test_tone.sh` first).
-2. Live gate before pushing: `MUSICO_LIVE_TESTS=1 cargo test -p musico-tauri live_ -- --ignored`.
+2. Live gate before pushing: `MUSICO_LIVE_TESTS=1 cargo test -p musico-online live_ -- --ignored`.
 3. Browser assertion suite for any UI chunk (Playwright, mock Bridge for offline runs).
 4. Isolated-HOME smoke run of the binary on any backend/identity change.
 5. Release tags only from green CI; re-push tag alone if the workflow doesn't fire (known GitHub quirk).

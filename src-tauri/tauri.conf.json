@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicehash/tauri/v2/crates/tauri-cli/schema.json",
-  "productName": "Musico",
+  "productName": "Musico Online",
   "version": "0.5.0",
-  "identifier": "dev.musico.app",
+  "identifier": "dev.musico.online",
   "build": {
     "frontendDist": "../frontend",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Musico",
+        "title": "Musico Online",
         "width": 1100,
         "height": 720,
         "minWidth": 460,
@@ -31,11 +31,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "publisher": "Musico",
+    "publisher": "Musico Online",
     "category": "Music",
     "copyright": "Copyright (c) 2026 Aryan. MIT License.",
     "homepage": "https://aryanch007h.github.io/Musico/",
-    "shortDescription": "Fast offline-first music player with smart radio, synced lyrics and EQ.",
+    "shortDescription": "Free online music, Apple-style: search and stream millions of tracks, no ads.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -67,7 +67,7 @@ impl AppState {
 /// UUID-era song ids (from the Iced app), it is cleared once so all ids
 /// agree with the stable path-hash scheme; a marker file records this.
 fn init_recommender() -> Option<Arc<Mutex<MusicRecommender>>> {
-    let db_dir = dirs::data_dir()?.join("musico").join("db");
+    let db_dir = crate::identity::data_dir()?.join("db");
     let _ = std::fs::create_dir_all(&db_dir);
     let marker = db_dir.join(".stable-ids");
     let rec = Arc::new(Mutex::new(match MusicRecommender::new(&db_dir.to_string_lossy()) {
