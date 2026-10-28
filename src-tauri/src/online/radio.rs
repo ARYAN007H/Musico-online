@@ -4,7 +4,7 @@
 use std::collections::VecDeque;
 use std::sync::{LazyLock, Mutex};
 
-use super::client::{http_client, innertube_context, innertube_post, NEXT_URL};
+use super::client::{innertube_context, innertube_post, NEXT_URL};
 use super::models::OnlineTrack;
 use super::parse::parse_radio_response;
 
@@ -20,8 +20,7 @@ pub fn radio_tracks(seed_video_id: &str) -> Result<Vec<OnlineTrack>, String> {
         "playlistId": format!("RD{seed_video_id}"),
     });
 
-    let client = http_client()?;
-    let json = innertube_post(&client, NEXT_URL, body)?;
+    let json = innertube_post(NEXT_URL, body)?;
     let mut tracks = parse_radio_response(&json);
     tracks.retain(|t| t.video_id != seed_video_id);
 

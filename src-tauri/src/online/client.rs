@@ -1,6 +1,8 @@
-//! The InnerTube HTTP choke point: every network byte for catalog traffic
-//! goes through here.  Owns the client identity, endpoint URLs, timeout
-//! policy, **global concurrency throttling** and retry/backoff.
+//! The InnerTube HTTP choke point: all catalog requests (search, radio, and
+//! Phase 2's browse endpoints) go through here.  Owns the client identity,
+//! endpoint URLs, timeout policy, **global concurrency throttling** and
+//! retry/backoff.  (Thumbnail/stream downloads use their own paths — they are
+//! throughput-oriented, not rate-limit-sensitive.
 //!
 //! Rate-limit safety: at most [`MAX_CONCURRENCY`] InnerTube requests are in
 //! flight at once (RAII permits); retryable failures back off exponentially
@@ -102,11 +104,20 @@ pub(crate) trait Transport {
     fn send(&self, url: &str, body: &str) -> Result<serde_json::Value, TransportError>;
 }
 
+/// One client for the process: TLS setup and the internal runtime thread are
+/// paid once; reqwest pools connections across attempts and calls.
+fn shared_client() -> Option<reqwest::blocking::Client> {
+    static CLIENT: LazyLock<Option<reqwest::blocking::Client>> = LazyLock::new(|| http_client().ok());
+    CLIENT.clone()
+}
+
 struct ReqwestTransport;
 
 impl Transport for ReqwestTransport {
     fn send(&self, url: &str, body: &str) -> Result<serde_json::Value, TransportError> {
-        let client = http_client().map_err(TransportError::Retryable)?;
+        let client = shared_client().ok_or_else(|| {
+            TransportError::Retryable("HTTP client: builder failed".into())
+        })?;
         let resp = client
             .post(url)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
@@ -132,6 +143,10 @@ impl Transport for ReqwestTransport {
 /// Executes `body` against `transport` under the global throttle, with
 /// jittered exponential backoff on retryable failures.  Fatal errors return
 /// immediately; retryable ones consume all [`MAX_ATTEMPTS`] before failing.
+///
+/// The concurrency slot is held for the whole call **including backoff
+/// sleeps** — a failing endpoint keeps its slot so fresh traffic can't pile
+/// onto it; worst case a caller waits ~1 s for a slot (2 attempts × backoff).
 pub(crate) fn post_via(
     transport: &dyn Transport,
     url: &str,
@@ -166,12 +181,7 @@ pub(crate) fn http_client() -> Result<reqwest::blocking::Client, String> {
 }
 
 /// POSTs to an InnerTube endpoint (retry + throttle applied).
-pub(crate) fn innertube_post(
-    client: &reqwest::blocking::Client,
-    url: &str,
-    body: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    let _ = client; // kept for signature compatibility with prior call sites
+pub(crate) fn innertube_post(url: &str, body: serde_json::Value) -> Result<serde_json::Value, String> {
     let full = format!("{url}?prettyPrint=false&key={INNERTUBE_KEY}");
     post_via(&ReqwestTransport, &full, &body)
 }
@@ -235,6 +245,11 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
+    /// The throttle is a process-global shared by cargo's parallel test
+    /// threads — every test that touches permits (directly or via post_via)
+    /// must hold this gate or assertions on `free_permits()` race.
+    static TEST_GATE: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
     #[test]
     fn extracts_client_version_from_html() {
         let html = r#"ytcfg.set({"INNERTUBE_CONTEXT":{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20261025.12.00","hl":"en"}}});"#;
@@ -280,6 +295,7 @@ mod tests {
 
     #[test]
     fn retry_succeeds_after_transient_failure() {
+        let _gate = TEST_GATE.lock().unwrap_or_else(|e| e.into_inner());
         let t = ScriptedTransport {
             script: vec![
                 Some(TransportError::Retryable("dns blip".into())),
@@ -294,6 +310,7 @@ mod tests {
 
     #[test]
     fn fatal_errors_are_not_retried() {
+        let _gate = TEST_GATE.lock().unwrap_or_else(|e| e.into_inner());
         let t = ScriptedTransport {
             script: vec![Some(TransportError::Fatal("HTTP 400 Bad Request".into()))],
             calls: AtomicUsize::new(0),
@@ -305,6 +322,7 @@ mod tests {
 
     #[test]
     fn retryable_exhaustion_returns_last_error() {
+        let _gate = TEST_GATE.lock().unwrap_or_else(|e| e.into_inner());
         let t = ScriptedTransport {
             script: vec![
                 Some(TransportError::Retryable("first".into())),
@@ -319,6 +337,7 @@ mod tests {
 
     #[test]
     fn throttle_caps_concurrency_at_two() {
+        let _gate = TEST_GATE.lock().unwrap_or_else(|e| e.into_inner());
         // Drain all slots, then confirm a third acquisition blocks.
         let p1 = acquire_permit();
         let p2 = acquire_permit();
@@ -337,14 +356,10 @@ mod tests {
         h.join().expect("waiter finishes after a slot frees");
         assert_eq!(acquired.load(Ordering::SeqCst), 1);
 
-        drop(p2); // release the last slot for other tests
-        assert_eq!(free_permits(), MAX_CONCURRENCY);
-    }
+        drop(p2); // release the last slot
 
-    #[test]
-    fn permit_release_notifies_waiters() {
-        // Regression guard for the Condvar wakeup path (the test above covers
-        // the blocking case; this covers repeated acquire/release churn).
+        // Churn: repeated acquire/release must always restore full capacity
+        // (regression guard for the Condvar wakeup path).
         for _ in 0..MAX_CONCURRENCY * 3 {
             let _p = acquire_permit();
         }
