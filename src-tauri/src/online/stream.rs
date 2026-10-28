@@ -10,7 +10,6 @@ use std::time::{Duration, Instant, SystemTime};
 
 use super::client::http_client;
 use super::models::OnlineTrack;
-use crate::state::AppState;
 use musico_playback::SongInfo;
 
 /// Cache size cap (LRU-pruned after each download).

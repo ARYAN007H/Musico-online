@@ -7,7 +7,6 @@ use std::sync::{LazyLock, Mutex};
 use super::client::{http_client, innertube_context, innertube_post, NEXT_URL};
 use super::models::OnlineTrack;
 use super::parse::parse_radio_response;
-use super::stream::cached_file;
 
 /// Radio picks avoid this many recently played online tracks.
 pub(crate) const RADIO_REMEMBER: usize = 12;

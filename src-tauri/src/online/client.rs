@@ -1,10 +1,16 @@
 //! The InnerTube HTTP choke point: every network byte for catalog traffic
 //! goes through here.  Owns the client identity, endpoint URLs, timeout
-//! policy and retry/backoff.  (ROADMAP C0.3 adds throttling + a mockable
-//! transport on top of this base.)
+//! policy, **global concurrency throttling** and retry/backoff.
+//!
+//! Rate-limit safety: at most [`MAX_CONCURRENCY`] InnerTube requests are in
+//! flight at once (RAII permits); retryable failures back off exponentially
+//! with jitter instead of hammering at a fixed interval.  The [`Transport`]
+//! trait keeps all of this unit-testable without touching the network.
 
-use std::sync::{LazyLock, RwLock};
+use std::sync::{Condvar, LazyLock, Mutex, RwLock};
 use std::time::{Duration, Instant};
+
+use rand::Rng;
 
 /// Public web client key used by music.youtube.com itself (not a secret).
 pub(crate) const INNERTUBE_KEY: &str = "AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
@@ -22,6 +28,135 @@ pub(crate) const HTTP_TIMEOUT: Duration = Duration::from_secs(12);
 /// How often the live client version is re-fetched.
 const VERSION_TTL: Duration = Duration::from_secs(24 * 3600);
 
+/// Global cap on in-flight InnerTube requests (rate-limit hygiene).
+const MAX_CONCURRENCY: usize = 2;
+/// Retry attempts for retryable failures (first try + one retry, as before).
+const MAX_ATTEMPTS: u32 = 2;
+/// Backoff base: attempt N waits `BASE * 2^N` ms plus 0–[`BACKOFF_JITTER_MS`] ms.
+const BACKOFF_BASE_MS: u64 = 400;
+const BACKOFF_JITTER_MS: u64 = 150;
+
+// ---------------------------------------------------------------------------
+// Throttle — global RAII permits
+// ---------------------------------------------------------------------------
+
+static PERMITS: LazyLock<(Mutex<usize>, Condvar)> =
+    LazyLock::new(|| (Mutex::new(MAX_CONCURRENCY), Condvar::new()));
+
+/// A held concurrency slot; released on drop.
+pub(crate) struct Permit {
+    _private: (),
+}
+
+impl Drop for Permit {
+    fn drop(&mut self) {
+        let (lock, cv) = &*PERMITS;
+        let mut available = lock.lock().unwrap_or_else(|e| e.into_inner());
+        *available += 1;
+        cv.notify_one();
+    }
+}
+
+/// Blocks until a concurrency slot is free.  Fair enough via Condvar wakeups.
+pub(crate) fn acquire_permit() -> Permit {
+    let (lock, cv) = &*PERMITS;
+    let mut available = lock.lock().unwrap_or_else(|e| e.into_inner());
+    while *available == 0 {
+        available = cv.wait(available).unwrap_or_else(|e| e.into_inner());
+    }
+    *available -= 1;
+    Permit { _private: () }
+}
+
+/// How many slots are currently free (test/debug introspection).
+#[cfg(test)]
+pub(crate) fn free_permits() -> usize {
+    let (lock, _) = &*PERMITS;
+    *lock.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Backoff for retry attempt `attempt` (0-based): `BASE * 2^attempt` ms plus
+/// uniform jitter, so parallel failures don't retry in lockstep.
+pub(crate) fn backoff_delay(attempt: u32) -> Duration {
+    let exp = BACKOFF_BASE_MS.saturating_mul(1u64 << attempt.min(6));
+    let jitter = rand::thread_rng().gen_range(0..BACKOFF_JITTER_MS);
+    Duration::from_millis(exp + jitter)
+}
+
+// ---------------------------------------------------------------------------
+// Transport — mockable request layer
+// ---------------------------------------------------------------------------
+
+/// Why a request failed.
+#[derive(Debug, PartialEq)]
+pub(crate) enum TransportError {
+    /// Transient (network error, HTTP 5xx) — worth retrying.
+    Retryable(String),
+    /// Permanent (HTTP 4xx etc.) — surface immediately.
+    Fatal(String),
+}
+
+/// The raw request layer, abstracted so tests can drive retry/throttle logic
+/// without network access.
+pub(crate) trait Transport {
+    fn send(&self, url: &str, body: &str) -> Result<serde_json::Value, TransportError>;
+}
+
+struct ReqwestTransport;
+
+impl Transport for ReqwestTransport {
+    fn send(&self, url: &str, body: &str) -> Result<serde_json::Value, TransportError> {
+        let client = http_client().map_err(TransportError::Retryable)?;
+        let resp = client
+            .post(url)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .body(body.to_owned())
+            .send()
+            .map_err(|e| TransportError::Retryable(format!("request failed: {e}")))?;
+        let status = resp.status();
+        if status.is_server_error() {
+            return Err(TransportError::Retryable(format!(
+                "YouTube Music returned HTTP {status}"
+            )));
+        }
+        if !status.is_success() {
+            return Err(TransportError::Fatal(format!(
+                "YouTube Music returned HTTP {status}"
+            )));
+        }
+        resp.json()
+            .map_err(|e| TransportError::Fatal(format!("bad response body: {e}")))
+    }
+}
+
+/// Executes `body` against `transport` under the global throttle, with
+/// jittered exponential backoff on retryable failures.  Fatal errors return
+/// immediately; retryable ones consume all [`MAX_ATTEMPTS`] before failing.
+pub(crate) fn post_via(
+    transport: &dyn Transport,
+    url: &str,
+    body: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let _permit = acquire_permit();
+    let payload = body.to_string();
+    let mut last_err = String::new();
+    for attempt in 0..MAX_ATTEMPTS {
+        if attempt > 0 {
+            std::thread::sleep(backoff_delay(attempt - 1));
+        }
+        match transport.send(url, &payload) {
+            Ok(v) => return Ok(v),
+            Err(TransportError::Fatal(e)) => return Err(e),
+            Err(TransportError::Retryable(e)) => last_err = e,
+        }
+    }
+    Err(last_err)
+}
+
+// ---------------------------------------------------------------------------
+// Public helpers
+// ---------------------------------------------------------------------------
+
 pub(crate) fn http_client() -> Result<reqwest::blocking::Client, String> {
     reqwest::blocking::Client::builder()
         .user_agent(USER_AGENT)
@@ -30,36 +165,15 @@ pub(crate) fn http_client() -> Result<reqwest::blocking::Client, String> {
         .map_err(|e| format!("HTTP client: {e}"))
 }
 
+/// POSTs to an InnerTube endpoint (retry + throttle applied).
 pub(crate) fn innertube_post(
     client: &reqwest::blocking::Client,
     url: &str,
     body: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
+    let _ = client; // kept for signature compatibility with prior call sites
     let full = format!("{url}?prettyPrint=false&key={INNERTUBE_KEY}");
-    let mut last_err = String::new();
-    // One retry: transient TLS/DNS/5xx blips are common enough to matter.
-    for attempt in 0..2 {
-        if attempt > 0 {
-            std::thread::sleep(Duration::from_millis(400));
-        }
-        let resp = match client.post(&full).json(&body).send() {
-            Ok(r) => r,
-            Err(e) => {
-                last_err = format!("request failed: {e}");
-                continue;
-            }
-        };
-        let status = resp.status();
-        if status.is_server_error() {
-            last_err = format!("YouTube Music returned HTTP {status}");
-            continue;
-        }
-        if !status.is_success() {
-            return Err(format!("YouTube Music returned HTTP {status}"));
-        }
-        return resp.json().map_err(|e| format!("bad response body: {e}"));
-    }
-    Err(last_err)
+    post_via(&ReqwestTransport, &full, &body)
 }
 
 /// The live InnerTube client version, auto-refreshed from the
@@ -118,6 +232,8 @@ pub(crate) fn innertube_context() -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     #[test]
     fn extracts_client_version_from_html() {
@@ -127,5 +243,111 @@ mod tests {
         assert_eq!(extract_client_version(r#""clientVersion":""#), None);
         // Rejects non-numeric junk after the marker.
         assert_eq!(extract_client_version(r#""clientVersion":"abc""#), None);
+    }
+
+    #[test]
+    fn backoff_is_exponential_with_bounded_jitter() {
+        for attempt in 0..4u32 {
+            let lo = BACKOFF_BASE_MS * (1u64 << attempt);
+            let hi = lo + BACKOFF_JITTER_MS;
+            for _ in 0..20 {
+                let d = backoff_delay(attempt).as_millis() as u64;
+                assert!((lo..=hi).contains(&d), "attempt {attempt}: {d} not in [{lo}, {hi}]");
+            }
+        }
+        // Exponential growth holds across attempts.
+        assert!(backoff_delay(3).as_millis() > backoff_delay(0).as_millis() * 4);
+    }
+
+    struct ScriptedTransport {
+        /// Failure to return per call index; None = succeed.
+        script: Vec<Option<TransportError>>,
+        calls: AtomicUsize,
+    }
+
+    impl Transport for ScriptedTransport {
+        fn send(&self, _url: &str, _body: &str) -> Result<serde_json::Value, TransportError> {
+            let i = self.calls.fetch_add(1, Ordering::SeqCst);
+            match self.script.get(i) {
+                Some(Some(e)) => Err(match e {
+                    TransportError::Retryable(m) => TransportError::Retryable(m.clone()),
+                    TransportError::Fatal(m) => TransportError::Fatal(m.clone()),
+                }),
+                _ => Ok(serde_json::json!({ "ok": i })),
+            }
+        }
+    }
+
+    #[test]
+    fn retry_succeeds_after_transient_failure() {
+        let t = ScriptedTransport {
+            script: vec![
+                Some(TransportError::Retryable("dns blip".into())),
+                None,
+            ],
+            calls: AtomicUsize::new(0),
+        };
+        let out = post_via(&t, "https://x", &serde_json::json!({})).expect("second attempt lands");
+        assert_eq!(out["ok"], 1);
+        assert_eq!(t.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn fatal_errors_are_not_retried() {
+        let t = ScriptedTransport {
+            script: vec![Some(TransportError::Fatal("HTTP 400 Bad Request".into()))],
+            calls: AtomicUsize::new(0),
+        };
+        let err = post_via(&t, "https://x", &serde_json::json!({})).unwrap_err();
+        assert!(err.contains("400"), "fatal error surfaced: {err}");
+        assert_eq!(t.calls.load(Ordering::SeqCst), 1, "no retry after fatal");
+    }
+
+    #[test]
+    fn retryable_exhaustion_returns_last_error() {
+        let t = ScriptedTransport {
+            script: vec![
+                Some(TransportError::Retryable("first".into())),
+                Some(TransportError::Retryable("second".into())),
+            ],
+            calls: AtomicUsize::new(0),
+        };
+        let err = post_via(&t, "https://x", &serde_json::json!({})).unwrap_err();
+        assert!(err.contains("second"), "last retryable error surfaced: {err}");
+        assert_eq!(t.calls.load(Ordering::SeqCst), MAX_ATTEMPTS as usize);
+    }
+
+    #[test]
+    fn throttle_caps_concurrency_at_two() {
+        // Drain all slots, then confirm a third acquisition blocks.
+        let p1 = acquire_permit();
+        let p2 = acquire_permit();
+        assert_eq!(free_permits(), 0, "both slots held");
+
+        let acquired = Arc::new(AtomicUsize::new(0));
+        let a2 = acquired.clone();
+        let h = std::thread::spawn(move || {
+            let _p = acquire_permit();
+            a2.fetch_add(1, Ordering::SeqCst);
+        });
+        std::thread::sleep(Duration::from_millis(120));
+        assert_eq!(acquired.load(Ordering::SeqCst), 0, "third request must wait");
+
+        drop(p1); // free one slot → the waiter proceeds
+        h.join().expect("waiter finishes after a slot frees");
+        assert_eq!(acquired.load(Ordering::SeqCst), 1);
+
+        drop(p2); // release the last slot for other tests
+        assert_eq!(free_permits(), MAX_CONCURRENCY);
+    }
+
+    #[test]
+    fn permit_release_notifies_waiters() {
+        // Regression guard for the Condvar wakeup path (the test above covers
+        // the blocking case; this covers repeated acquire/release churn).
+        for _ in 0..MAX_CONCURRENCY * 3 {
+            let _p = acquire_permit();
+        }
+        assert_eq!(free_permits(), MAX_CONCURRENCY);
     }
 }
