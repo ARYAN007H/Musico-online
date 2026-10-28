@@ -5,6 +5,11 @@ Apple Music-class rebuild of the player with free online music. The streaming la
 same public technique as Metrolist / InnerTune / RiMusic (InnerTube + yt-dlp); it lives here,
 **not** in the offline Musico release, and is for personal use.
 
+<p align="center">
+  <img src="docs/screenshots/library-light.png" width="49%" alt="Musico Online — light theme"/>
+  <img src="docs/screenshots/library-dark.png" width="49%" alt="Musico Online — dark theme"/>
+</p>
+
 ## Robustness & capability notes (v2 polish, 2026-10-28)
 
 - **Auto-refreshed client version** — `client_version()` scrapes the live

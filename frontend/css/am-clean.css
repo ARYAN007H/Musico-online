@@ -1,0 +1,126 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   MUSICO ONLINE — am-clean.css
+   The Apple Music "calm" layer: flat card surfaces, hairline borders, soft
+   elevation, tight display tracking.  Loads LAST so it refines the neumorphic
+   base without touching the vinyl / transport identity pieces.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* AM elevation model — soft, close, never puffy */
+  --elev-card:   0 1px 2px rgba(20, 15, 8, 0.05), 0 6px 16px rgba(20, 15, 8, 0.06);
+  --elev-card-hover: 0 2px 4px rgba(20, 15, 8, 0.07), 0 10px 24px rgba(20, 15, 8, 0.10);
+  --border-card: 1px solid var(--divider, rgba(155, 140, 120, 0.18));
+  --radius-card: 12px;
+
+  /* AM type scale — large calm headings with tight tracking */
+  --text-page:      30px;
+  --text-section:   21px;
+  --tracking-tight: -0.02em;
+
+  /* Content surfaces read as clean cards, not molded plastic */
+  --surface-card:   var(--surface-raised);
+}
+
+[data-theme="dark"] {
+  --elev-card:   0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.45);
+  --elev-card-hover: 0 2px 6px rgba(0, 0, 0, 0.5), 0 12px 28px rgba(0, 0, 0, 0.55);
+  --surface-card: var(--surface-raised);
+}
+
+/* ─── Page & section headings ───────────────────────────────────────────────── */
+.browse-title,
+.view h1 {
+  font-size: var(--text-page);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.15;
+}
+
+.browse-sub { max-width: 52ch; }
+
+/* ─── Browse rows: AM list style — hairline, tint hover, no inset ───────────── */
+.browse-row {
+  border-radius: var(--radius-card);
+  padding: 8px 10px;
+}
+
+.browse-thumb { border-radius: 8px; box-shadow: var(--elev-card); }
+
+.browse-row-title { font-size: 13.5px; letter-spacing: -0.01em; }
+
+.browse-search {
+  background: var(--surface-card);
+  border: var(--border-card);
+  box-shadow: none;
+}
+
+.browse-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.browse-chip {
+  border: var(--border-card);
+  background: var(--surface-card);
+  box-shadow: none;
+}
+.browse-chip:hover { border-color: var(--accent); }
+
+/* ─── Library rows: AM songs list — hairline separators, tint hover ─────────── */
+.song-row {
+  box-shadow: none;
+  border-radius: var(--radius-card);
+  border: none;
+  border-bottom: 1px solid var(--divider);
+  background: transparent;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.song-row:hover { background: var(--accent-tint); }
+.song-row[aria-current="true"] {
+  background: var(--accent-tint-strong);
+  border-bottom-color: transparent;
+}
+
+/* Album grid cards: raised card + hairline + soft elevation */
+.album-card {
+  background: var(--surface-card);
+  border: var(--border-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--elev-card);
+  transition: box-shadow var(--duration-normal) var(--ease-out),
+              transform var(--duration-normal) var(--ease-out);
+}
+.album-card:hover {
+  box-shadow: var(--elev-card-hover);
+  transform: translateY(-2px);
+}
+
+/* ─── Queue view + settings: flatten heavy insets ───────────────────────────── */
+.queue-list .queue-row,
+.settings-panel .settings-card {
+  background: var(--surface-card);
+  border: var(--border-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--elev-card);
+}
+
+/* Buttons: solid accent pill, no dual-shadow */
+.btn-queue-current,
+.browse-search-btn {
+  box-shadow: none;
+}
+
+/* ─── Sidebar refinement ─────────────────────────────────────────────────────── */
+.nav-item {
+  border-radius: 8px;
+  transition: background var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+}
+.nav-item.active { background: var(--accent-tint-strong); }
+.nav-group-label { letter-spacing: 1.2px; }
+
+/* ─── Panels ─────────────────────────────────────────────────────────────────── */
+.queue-panel {
+  border-left: var(--border-card);
+  box-shadow: -16px 0 40px rgba(20, 15, 8, 0.14);
+}
