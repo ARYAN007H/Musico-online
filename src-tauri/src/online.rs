@@ -581,7 +581,7 @@ fn collect_values<'a>(node: &'a serde_json::Value, key: &str, out: &mut Vec<&'a 
 pub fn cache_dir() -> PathBuf {
     dirs::cache_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
-        .join("musico")
+        .join(crate::identity::DATA_SUBDIR)
         .join("online")
 }
 
@@ -1130,7 +1130,7 @@ mod live_tests {
     use super::*;
 
     /// End-to-end live check against YouTube Music.  Opt-in (hits the network):
-    ///   MUSICO_LIVE_TESTS=1 cargo test -p musico-tauri live_ -- --ignored --nocapture
+    ///   MUSICO_LIVE_TESTS=1 cargo test -p musico-online live_ -- --ignored --nocapture
     #[test]
     #[ignore = "network test — run with MUSICO_LIVE_TESTS=1"]
     fn live_search_and_radio() {

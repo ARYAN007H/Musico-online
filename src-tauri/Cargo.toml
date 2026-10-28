@@ -1,9 +1,9 @@
 [package]
-name = "musico-tauri"
+name = "musico-online"
 version = "0.5.0"
 edition = "2021"
 rust-version = "1.78"
-description = "Tauri shell for Musico — neumorphic music player"
+description = "Musico Online — clean-room Apple Music-class player on free sources"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

@@ -45,7 +45,7 @@ jobs:
       - name: Package raw binary
         run: |
           mkdir -p dist
-          cp target/release/musico-tauri dist/musico-online-linux-x86_64
+          cp target/release/musico-online dist/musico-online-linux-x86_64
           chmod +x dist/musico-online-linux-x86_64
           tar czf dist/musico-online-linux-x86_64.tar.gz -C dist musico-online-linux-x86_64
 

@@ -281,7 +281,7 @@ Each phase = 1–3 sessions. Phases 2–4 are where "millions of albums" becomes
 
 ## 8. Verification protocol (every session)
 1. `cargo test --workspace` green (engine e2e needs `scripts/gen_test_tone.sh` first).
-2. Live gate before pushing: `MUSICO_LIVE_TESTS=1 cargo test -p musico-tauri live_ -- --ignored`.
+2. Live gate before pushing: `MUSICO_LIVE_TESTS=1 cargo test -p musico-online live_ -- --ignored`.
 3. Browser assertion suite for any UI chunk (Playwright, mock Bridge for offline runs).
 4. Isolated-HOME smoke run of the binary on any backend/identity change.
 5. Release tags only from green CI; re-push tag alone if the workflow doesn't fire (known GitHub quirk).

@@ -73,7 +73,7 @@ Events: `online-status` (`resolving` / `playing` / `error`).
 ## Build
 
 ```sh
-cargo build -p musico-tauri
+cargo build -p musico-online
 cargo test --workspace   # ~73 tests incl. live audio-device e2e
 ```
 

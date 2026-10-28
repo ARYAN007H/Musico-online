@@ -8,6 +8,7 @@
 
 mod commands;
 mod config;
+mod identity;
 mod event_bridge;
 mod lyrics;
 mod online;
@@ -27,7 +28,7 @@ fn main() {
     // is set explicitly, for development).
     let mut builder = env_logger::Builder::new();
     builder.filter_level(log::LevelFilter::Info);
-    if let Some(dir) = dirs::data_dir().map(|d| d.join("musico")) {
+    if let Some(dir) = crate::identity::data_dir() {
         let _ = std::fs::create_dir_all(&dir);
         if let Ok(file) = std::fs::OpenOptions::new()
             .create(true)

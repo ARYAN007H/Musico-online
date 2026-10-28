@@ -7,7 +7,6 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-const APP_DIR_NAME: &str = "musico";
 const SETTINGS_FILE: &str = "settings.json";
 
 /// Persisted user settings.
@@ -77,7 +76,7 @@ impl Default for AppSettings {
 }
 
 fn settings_path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join(APP_DIR_NAME).join(SETTINGS_FILE))
+    crate::identity::config_dir().map(|d| d.join(SETTINGS_FILE))
 }
 
 impl AppSettings {
