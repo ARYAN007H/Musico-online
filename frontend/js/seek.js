@@ -93,3 +93,4 @@ const Seek = (() => {
     isDragging: () => isDragging,
   };
 })();
+window.Seek = Seek;

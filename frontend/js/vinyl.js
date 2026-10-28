@@ -71,3 +71,4 @@ const Vinyl = (() => {
 
   return { setPlaying, setProgress, setAlbumArt };
 })();
+window.Vinyl = Vinyl;

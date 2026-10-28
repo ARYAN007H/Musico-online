@@ -49,3 +49,4 @@ const Knob = (() => {
 
   return { setVolume };
 })();
+window.Knob = Knob;

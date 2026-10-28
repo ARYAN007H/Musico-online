@@ -18,15 +18,16 @@
 <!-- Asset URLs carry ?v= — bump on frontend changes so the WebKit webview
      can't serve stale cached scripts/styles (bit us once: old bridge.js
      kept breaking IPC after an update). -->
-<link rel="stylesheet" href="css/tokens.css?v=0.4.1"/>
-<link rel="stylesheet" href="css/neumorphic.css?v=0.4.1"/>
-<link rel="stylesheet" href="css/animations.css?v=0.4.1"/>
-<link rel="stylesheet" href="css/layout.css?v=0.4.1"/>
-<link rel="stylesheet" href="css/now-playing.css?v=0.4.1"/>
-<link rel="stylesheet" href="css/library.css?v=0.4.1"/>
-<link rel="stylesheet" href="css/queue.css?v=0.4.1"/>
-<link rel="stylesheet" href="css/settings.css?v=0.4.1"/>
-<link rel="stylesheet" href="css/online.css?v=0.4.1"/>
+<link rel="stylesheet" href="css/tokens.css?v=0.6.0"/>
+<link rel="stylesheet" href="css/neumorphic.css?v=0.6.0"/>
+<link rel="stylesheet" href="css/animations.css?v=0.6.0"/>
+<link rel="stylesheet" href="css/layout.css?v=0.6.0"/>
+<link rel="stylesheet" href="css/now-playing.css?v=0.6.0"/>
+<link rel="stylesheet" href="css/library.css?v=0.6.0"/>
+<link rel="stylesheet" href="css/queue.css?v=0.6.0"/>
+<link rel="stylesheet" href="css/settings.css?v=0.6.0"/>
+<link rel="stylesheet" href="css/online.css?v=0.6.0"/>
+<link rel="stylesheet" href="css/topbar.css?v=0.6.0"/>
 </head>
 <body>
 
@@ -35,43 +36,12 @@
        SIDEBAR (≥860px) — brand, navigation, now-playing dock
        ══════════════════════════════════════════════════════════════════════════ -->
   <aside id="sidebar">
-    <div class="side-brand">
-      <svg class="brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 3v2.5M12 18.5V21"/>
-      </svg>
-      <div class="brand-text">
-        <div class="brand-name">MUSICO</div>
-        <div class="brand-sub">v0.5.0-online</div>
-      </div>
-    </div>
-
-    <nav class="side-nav" aria-label="Main">
-      <button class="nav-item active" data-view="browse">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-        <span>Browse</span>
-      </button>
-      <button class="nav-item" data-view="now-playing">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3"/></svg>
-        <span>Now Playing</span>
-      </button>
-      <button class="nav-item" data-view="library">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
-        <span>Library</span>
-      </button>
-      <button class="nav-item" data-view="queue">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-        <span>Queue</span>
-      </button>
-      <button class="nav-item" data-view="playlists">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-        <span>Playlists</span>
-      </button>
-      <button class="nav-item" data-view="settings">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-        <span>Settings</span>
-      </button>
-    </nav>
+    <!-- Preact shell (core/shell.js) renders brand + grouped nav here -->
+    <div id="sidebar-root"></div>
   </aside>
+
+  <!-- Apple Music-style persistent transport LCD (Preact shell) -->
+  <header id="topbar-root" class="topbar-root"></header>
 
   <div id="content-area">
   <main id="main-content">
@@ -613,12 +583,15 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      JAVASCRIPT
      ═══════════════════════════════════════════════════════════════════════════ -->
-<script src="js/bridge.js?v=0.4.1"></script>
-<script src="js/app.js?v=0.4.1"></script>
-<script src="js/online.js?v=0.4.1"></script>
-<script src="js/vinyl.js?v=0.4.1"></script>
-<script src="js/knob.js?v=0.4.1"></script>
-<script src="js/seek.js?v=0.4.1"></script>
+<script src="js/bridge.js?v=0.6.0"></script>
+<script src="js/app.js?v=0.6.0"></script>
+  <script type="module" src="js/core/store.js?v=0.6.0"></script>
+  <script type="module" src="js/core/router.js?v=0.6.0"></script>
+  <script type="module" src="js/core/shell.js?v=0.6.0"></script>
+<script src="js/online.js?v=0.6.0"></script>
+<script src="js/vinyl.js?v=0.6.0"></script>
+<script src="js/knob.js?v=0.6.0"></script>
+<script src="js/seek.js?v=0.6.0"></script>
 
 </body>
 </html>
