@@ -585,8 +585,8 @@
      ═══════════════════════════════════════════════════════════════════════════ -->
 <script src="js/bridge.js?v=0.6.0"></script>
 <script src="js/app.js?v=0.6.0"></script>
-  <script type="module" src="js/core/store.js?v=0.6.0"></script>
-  <script type="module" src="js/core/router.js?v=0.6.0"></script>
+  <!-- shell.js imports store/router (versioned inside the module graph);
+       standalone tags removed — they created duplicate module instances -->
   <script type="module" src="js/core/shell.js?v=0.6.0"></script>
 <script src="js/online.js?v=0.6.0"></script>
 <script src="js/vinyl.js?v=0.6.0"></script>

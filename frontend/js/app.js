@@ -290,6 +290,7 @@ const App = (() => {
         if (window.Seek && typeof Seek.isDragging === 'function' && Seek.isDragging()) break;
         state.position = ev.position_secs;
         updateProgress();
+        publishPlayback();
         updateLyricsHighlight(ev.position_secs);
         break;
       case 'Paused':
@@ -551,7 +552,9 @@ const App = (() => {
   // and anything future.  The router owns history; _activateView owns DOM.
   function setupNavigation() {
     document.addEventListener('click', (e) => {
-      const item = e.target.closest('[data-view]');
+      // .nav-item scope: other [data-view] attrs (library list/grid toggles)
+      // are view preferences, not navigation.
+      const item = e.target.closest('.nav-item[data-view]');
       if (!item || item.disabled) return;
       navigateTo(item.dataset.view);
     });
@@ -1308,7 +1311,7 @@ const App = (() => {
       seek: (secs) => {
         state.position = secs;
         updateProgress();
-        Bridge.invoke('seek', { position_secs: secs });
+        Bridge.invoke('seek', { positionSecs: secs });
       },
     },
   };

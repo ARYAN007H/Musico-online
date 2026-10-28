@@ -8,8 +8,8 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 
 import { html, render, useState, useEffect } from '../../vendor/htm-preact.js';
-import Store from './store.js';
-import Router from './router.js';
+import Store from './store.js?v=0.6.0';
+import Router from './router.js?v=0.6.0';
 
 // ─── Shared hooks ─────────────────────────────────────────────────────────────
 
@@ -109,6 +109,8 @@ function TopBar() {
   const view = useStoreValue('view', Router.current());
   const pb = useStoreValue('playback', { hasSong: false });
   const [scrub, setScrub] = useState(null); // 0..1000 while dragging
+  // Volume throttle (mirrors knob.js: stream input events, flush on change)
+  const volThrottle = { last: 0, pending: null };
   const app = () => window.App || {};
   const transport = () => app().transport || {};
   const frac = scrub !== null ? scrub / 1000
@@ -145,9 +147,9 @@ function TopBar() {
         </button>
       </div>
 
-      <div class="topbar-lcd" id="lcd" aria-live="polite">
+      <div class="topbar-lcd" id="lcd">
         ${pb.hasSong ? html`<${ArtThumb} pb=${pb} />` : html`<div class="lcd-art lcd-art-empty" aria-hidden="true" />`}
-        <div class="lcd-meta">
+        <div class="lcd-meta" aria-live="polite">
           <div class="lcd-title">${pb.hasSong ? pb.title : 'Not Playing'}</div>
           <div class="lcd-artist">${pb.hasSong ? pb.artist : 'Play something — it is all free'}</div>
           <div class="lcd-seek-row">
@@ -182,7 +184,22 @@ function TopBar() {
           <input type="range" class="lcd-vol" min="0" max="100" step="1"
                  value=${Math.round((pb.volume ?? 0.68) * 100)}
                  aria-label="Volume"
-                 onInput=${(e) => window.Knob?.setVolume?.(Number(e.target.value) / 100, true)} />
+                 onInput=${(e) => {
+                   const v = Number(e.target.value) / 100;
+                   const now = Date.now();
+                   volThrottle.pending = v;
+                   if (now - volThrottle.last >= 100) {
+                     volThrottle.last = now;
+                     window.Knob?.setVolume?.(v, true);
+                     volThrottle.pending = null;
+                   }
+                 }}
+                 onChange=${(e) => {
+                   // Flush the final value (knob.js parity)
+                   const v = Number(e.target.value) / 100;
+                   window.Knob?.setVolume?.(v, true);
+                   volThrottle.pending = null;
+                 }} />
         </div>
       </div>
     </header>`;
