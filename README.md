@@ -74,5 +74,19 @@ Events: `online-status` (`resolving` / `playing` / `error`).
 
 ```sh
 cargo build -p musico-tauri
-cargo test --workspace   # 19 tests incl. live audio-device e2e
+cargo test --workspace   # ~73 tests incl. live audio-device e2e
 ```
+
+## Releases
+
+Tag a `v*` version and GitHub Actions builds it (Linux only — macOS Actions
+minutes bill 10× on private repos, and the streaming layer targets the Linux
+daily driver):
+
+```sh
+git tag v0.5.1-online && git push origin v0.5.1-online
+```
+
+`release.yml`: tests → `tauri build` (deb/rpm/AppImage) → bare binary
+tar.gz + SHA256SUMS → GitHub Release. Tags containing `-` publish as
+**prerelease**. `ci.yml` runs the workspace tests on every push to main.

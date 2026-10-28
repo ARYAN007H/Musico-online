@@ -693,19 +693,23 @@ fn run_yt_dlp(url: &str, template: &Path, timeout: Duration) -> Result<(), Strin
         .spawn()
         .map_err(|e| format!("failed to launch yt-dlp: {e}"))?;
 
-    let (tx, rx) = std::sync::mpsc::channel();
-    let pid = child.id();
-    std::thread::spawn(move || {
-        let status = child.wait();
-        let _ = tx.send(status);
-    });
-    let status = rx
-        .recv_timeout(timeout)
-        .map_err(|_| {
-            let _ = Command::new("kill").arg(pid.to_string()).status();
-            format!("yt-dlp timed out after {}s", timeout.as_secs())
-        })?
-        .map_err(|e| format!("yt-dlp wait: {e}"))?;
+    // Poll instead of a wait-thread: lets us kill the child directly on
+    // timeout (portable — no external `kill` binary needed on Windows).
+    let deadline = Instant::now() + timeout;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Ok(status),
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait(); // reap so no zombie remains
+                    break Err(format!("yt-dlp timed out after {}s", timeout.as_secs()));
+                }
+                std::thread::sleep(Duration::from_millis(200));
+            }
+            Err(e) => break Err(format!("yt-dlp wait: {e}")),
+        }
+    }?;
 
     if !status.success() {
         return Err(format!("yt-dlp exited with {status} — stream unavailable or region-locked"));

@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Linux x86_64 (deb / rpm / AppImage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev pkg-config libfontconfig1-dev \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf libwayland-dev libxkbcommon-dev
+
+      - name: Tests
+        run: cargo test --workspace --exclude musico_playback
+        # Engine e2e tests need a real audio device — CI runners have none.
+        # The InnerTube live test is #[ignore]-gated and stays skipped here.
+
+      - name: Install Tauri CLI
+        run: npm install --global "@tauri-apps/cli@^2"
+
+      - name: Build bundles
+        run: tauri build --bundles deb,rpm,appimage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        # linuxdeploy runs via extract-and-run — CI runners have no FUSE.
+
+      - name: Package raw binary
+        run: |
+          mkdir -p dist
+          cp target/release/musico-tauri dist/musico-online-linux-x86_64
+          chmod +x dist/musico-online-linux-x86_64
+          tar czf dist/musico-online-linux-x86_64.tar.gz -C dist musico-online-linux-x86_64
+
+      - name: Collect packages
+        run: |
+          cp target/release/bundle/deb/*.deb dist/
+          cp target/release/bundle/rpm/*.rpm dist/
+          cp target/release/bundle/appimage/*.AppImage dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: [linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum musico-online-* *.deb *.rpm *.AppImage > SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Musico Online ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: dist/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          body: |
+            **Musico Online** — the Musico player with free online music:
+            InnerTube (YT Music) search + yt-dlp playback, Browse home screen,
+            online radio, fullscreen-only vinyl.
+
+            **Linux** — `.deb` / `.rpm` / `.AppImage`, or the bare binary in the
+            `.tar.gz`. Install yt-dlp first (`pacman -S yt-dlp` or
+            `pip install yt-dlp`) — the Browse screen warns if it's missing.
+
+            Streams cache to `~/.cache/musico/online/` (1 GB LRU cap).
+            This build is private-distribution only; the streaming layer is
+            ToS-gray-area and must never ship in the public Musico repo.
