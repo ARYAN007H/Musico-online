@@ -8,8 +8,8 @@
    ══════════════════════════════════════════════════════════════════════════════ */
 
 import { html, render, useState, useEffect } from '../../vendor/htm-preact.js';
-import Store from './store.js?v=0.6.0';
-import Router from './router.js?v=0.6.0';
+import Store from './store.js?v=0.6.1';
+import Router from './router.js?v=0.6.1';
 
 // ─── Shared hooks ─────────────────────────────────────────────────────────────
 
@@ -108,6 +108,7 @@ function ArtThumb({ pb }) {
 function TopBar() {
   const view = useStoreValue('view', Router.current());
   const pb = useStoreValue('playback', { hasSong: false });
+  const panelOpen = useStoreValue('queuePanel', false);
   const [scrub, setScrub] = useState(null); // 0..1000 while dragging
   // Volume throttle (mirrors knob.js: stream input events, flush on change)
   const volThrottle = { last: 0, pending: null };
@@ -171,8 +172,8 @@ function TopBar() {
       </div>
 
       <div class="topbar-right">
-        <button class="lcd-btn ${view === 'queue' ? 'lcd-on' : ''}" title="Playing Next" aria-label="Playing Next queue"
-                onClick=${() => Router.navigate(view === 'queue' ? 'browse' : 'queue')}>
+        <button class="lcd-btn ${panelOpen ? 'lcd-on' : ''}" title="Playing Next" aria-label="Playing Next queue"
+                onClick=${() => Store.set('queuePanel', !panelOpen)}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h13M3 12h13M3 18h9"/><path d="M19 12v6M22 15l-3-3-3 3"/></svg>
         </button>
         <button class="lcd-btn" title="Fullscreen player" aria-label="Fullscreen player"
@@ -205,11 +206,90 @@ function TopBar() {
     </header>`;
 }
 
+// ─── Playing Next panel ───────────────────────────────────────────────────────
+
+function fmtQueueTime(secs) {
+  const s = Math.max(0, Math.floor(secs || 0));
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function QueueRow({ song, current, onPlay }) {
+  const bg = song.thumb
+    ? `url("${song.thumb}") center/cover no-repeat, ${song.artGrad || 'var(--surface-raised)'}`
+    : (song.artGrad || 'var(--surface-raised)');
+  return html`
+    <div class="qp-row ${current ? 'qp-current' : ''}" role="button" tabindex="0"
+         aria-label="Play ${song.title}" onClick=${onPlay}
+         onKeyDown=${(e) => { if (e.key === 'Enter') onPlay(); }}>
+      <div class="qp-art" style=${{ background: bg }} aria-hidden="true" />
+      <div class="qp-meta">
+        <div class="qp-title">${song.title}</div>
+        <div class="qp-sub">${song.artist}</div>
+      </div>
+      <span class="qp-dur">${fmtQueueTime(song.duration_secs)}</span>
+    </div>`;
+}
+
+function QueuePanel() {
+  const open = useStoreValue('queuePanel', false);
+  const queue = useStoreValue('queue', []);
+  const history = useStoreValue('history', []);
+  const pb = useStoreValue('playback', { hasSong: false });
+  const autoplay = useStoreValue('autoplay', true);
+  if (!open) return null;
+
+  const playSong = (song) => window.App?.playSong?.(song);
+  const upcoming = queue.filter((q) => q.id !== pb.id);
+
+  return html`
+    <aside class="queue-panel" role="complementary" aria-label="Playing Next">
+      <div class="qp-header">
+        <div class="qp-title-lg">Playing Next</div>
+        <button class="lcd-btn" title="Close" aria-label="Close Playing Next"
+                onClick=${() => Store.set('queuePanel', false)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="qp-scroll">
+        ${pb.hasSong ? html`
+          <div class="qp-section">Now Playing</div>
+          <${QueueRow} song=${{ ...pb, title: pb.title, duration_secs: pb.duration }} current=${true}
+                       onPlay=${() => {}} />` : null}
+
+        <div class="qp-section">Playing Next</div>
+        ${upcoming.length ? upcoming.map((song, i) => html`
+          <${QueueRow} key=${song.id + i} song=${song} onPlay=${() => playSong(song)} />`)
+          : html`<div class="qp-empty">Queue is empty — play something.</div>`}
+
+        <div class="qp-section">Recently Played</div>
+        ${history.length ? history.map((song, i) => html`
+          <${QueueRow} key=${song.id + 'h' + i} song=${song} onPlay=${() => playSong(song)} />`)
+          : html`<div class="qp-empty">Nothing yet.</div>`}
+      </div>
+
+      <button class="qp-autoplay" aria-pressed=${autoplay}
+              title="Toggle autoplay"
+              onClick=${() => {
+                const nv = !autoplay;
+                Store.set('autoplay', nv);
+                window.Bridge?.invoke?.('set_autoplay', { enabled: nv });
+              }}>
+        <input type="checkbox" role="switch" checked=${autoplay} tabindex="-1" aria-hidden="true"
+               style="pointer-events: none" />
+        <span>Autoplay — keep the music going</span>
+      </button>
+    </aside>`;
+}
+
 // ─── Mount ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
   const sidebarRoot = document.getElementById('sidebar-root');
   const topbarRoot = document.getElementById('topbar-root');
+  const panelRoot = document.getElementById('panel-root');
   if (sidebarRoot) render(html`<${Sidebar} />`, sidebarRoot);
   if (topbarRoot) render(html`<${TopBar} />`, topbarRoot);
+  if (panelRoot) render(html`<${QueuePanel} />`, panelRoot);
 });

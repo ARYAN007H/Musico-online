@@ -43,6 +43,10 @@ pub struct AppSettings {
     /// UI theme: "light" | "dark"
     #[serde(default = "default_theme")]
     pub theme: String,
+    /// Keep the music going when the queue runs dry (radio/related picks).
+    /// Apple Music calls this Autoplay; default on.
+    #[serde(default = "default_true")]
+    pub autoplay: bool,
 }
 
 fn default_volume() -> f32 { 0.68 }
@@ -71,6 +75,7 @@ impl Default for AppSettings {
             shuffle_mode: 0,
             repeat_mode: 0,
             theme: default_theme(),
+            autoplay: true,
         }
     }
 }
@@ -100,5 +105,29 @@ impl AppSettings {
         }
         let json = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
         std::fs::write(&path, json).map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn autoplay_defaults_on_and_survives_partial_json() {
+        // Old settings file without the key → autoplay defaults on.
+        let partial = r#"{"volume": 0.5, "palette": "nebula"}"#;
+        let s: AppSettings = serde_json::from_str(partial).unwrap();
+        assert!(s.autoplay, "autoplay must default on");
+
+        let full = AppSettings::default();
+        assert!(full.autoplay);
+        let json = serde_json::to_string(&full).unwrap();
+        let back: AppSettings = serde_json::from_str(&json).unwrap();
+        assert!(back.autoplay);
+
+        // Explicit off round-trips.
+        let off = r#"{"autoplay": false}"#;
+        let s: AppSettings = serde_json::from_str(off).unwrap();
+        assert!(!s.autoplay);
     }
 }

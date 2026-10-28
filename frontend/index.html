@@ -18,16 +18,17 @@
 <!-- Asset URLs carry ?v= — bump on frontend changes so the WebKit webview
      can't serve stale cached scripts/styles (bit us once: old bridge.js
      kept breaking IPC after an update). -->
-<link rel="stylesheet" href="css/tokens.css?v=0.6.0"/>
-<link rel="stylesheet" href="css/neumorphic.css?v=0.6.0"/>
-<link rel="stylesheet" href="css/animations.css?v=0.6.0"/>
-<link rel="stylesheet" href="css/layout.css?v=0.6.0"/>
-<link rel="stylesheet" href="css/now-playing.css?v=0.6.0"/>
-<link rel="stylesheet" href="css/library.css?v=0.6.0"/>
-<link rel="stylesheet" href="css/queue.css?v=0.6.0"/>
-<link rel="stylesheet" href="css/settings.css?v=0.6.0"/>
-<link rel="stylesheet" href="css/online.css?v=0.6.0"/>
-<link rel="stylesheet" href="css/topbar.css?v=0.6.0"/>
+<link rel="stylesheet" href="css/tokens.css?v=0.6.1"/>
+<link rel="stylesheet" href="css/neumorphic.css?v=0.6.1"/>
+<link rel="stylesheet" href="css/animations.css?v=0.6.1"/>
+<link rel="stylesheet" href="css/layout.css?v=0.6.1"/>
+<link rel="stylesheet" href="css/now-playing.css?v=0.6.1"/>
+<link rel="stylesheet" href="css/library.css?v=0.6.1"/>
+<link rel="stylesheet" href="css/queue.css?v=0.6.1"/>
+<link rel="stylesheet" href="css/settings.css?v=0.6.1"/>
+<link rel="stylesheet" href="css/online.css?v=0.6.1"/>
+<link rel="stylesheet" href="css/topbar.css?v=0.6.1"/>
+<link rel="stylesheet" href="css/queue-panel.css?v=0.6.1"/>
 </head>
 <body>
 
@@ -42,6 +43,9 @@
 
   <!-- Apple Music-style persistent transport LCD (Preact shell) -->
   <header id="topbar-root" class="topbar-root"></header>
+
+  <!-- Playing Next slide-in panel (Preact shell) -->
+  <div id="panel-root"></div>
 
   <div id="content-area">
   <main id="main-content">
@@ -583,15 +587,15 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      JAVASCRIPT
      ═══════════════════════════════════════════════════════════════════════════ -->
-<script src="js/bridge.js?v=0.6.0"></script>
-<script src="js/app.js?v=0.6.0"></script>
+<script src="js/bridge.js?v=0.6.1"></script>
+<script src="js/app.js?v=0.6.1"></script>
   <!-- shell.js imports store/router (versioned inside the module graph);
        standalone tags removed — they created duplicate module instances -->
-  <script type="module" src="js/core/shell.js?v=0.6.0"></script>
-<script src="js/online.js?v=0.6.0"></script>
-<script src="js/vinyl.js?v=0.6.0"></script>
-<script src="js/knob.js?v=0.6.0"></script>
-<script src="js/seek.js?v=0.6.0"></script>
+  <script type="module" src="js/core/shell.js?v=0.6.1"></script>
+<script src="js/online.js?v=0.6.1"></script>
+<script src="js/vinyl.js?v=0.6.1"></script>
+<script src="js/knob.js?v=0.6.1"></script>
+<script src="js/seek.js?v=0.6.1"></script>
 
 </body>
 </html>

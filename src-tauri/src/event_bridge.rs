@@ -139,9 +139,9 @@ fn advance_from(handle: &AppHandle, ended: Option<&PlaybackEvent>, allow_online_
         return false;
     }
 
-    let (shuffle, repeat, smart_recs) = {
+    let (shuffle, repeat, smart_recs, autoplay) = {
         let s = state.settings.lock().unwrap_or_else(|e| e.into_inner());
-        (s.shuffle_mode, s.repeat_mode, s.smart_recs)
+        (s.shuffle_mode, s.repeat_mode, s.smart_recs, s.autoplay)
     };
 
     // 2. Repeat One
@@ -174,7 +174,8 @@ fn advance_from(handle: &AppHandle, ended: Option<&PlaybackEvent>, allow_online_
     }
 
     // 4. Smart Radio: top recommendation anchored on the current song
-    if shuffle == 2 && smart_recs {
+    //    (also fires when autoplay is on, regardless of shuffle mode)
+    if (shuffle == 2 && smart_recs) || autoplay {
         if let Some(rec) = &state.recommender {
             let current_id = eng
                 .state()

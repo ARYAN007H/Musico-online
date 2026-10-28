@@ -100,6 +100,12 @@ const App = (() => {
     renderAlbumGrid(state.library);
     generateWaveform();
 
+    // Publish autoplay for the Playing Next panel
+    try {
+      const st = await Bridge.invoke('get_settings');
+      window.MusicoStore?.set('autoplay', !!st?.autoplay);
+    } catch (e) { /* preview mock path */ }
+
     // Merge likes into the backend recommender before first rec request
     await syncLikesWithBackend();
 
@@ -275,6 +281,7 @@ const App = (() => {
           state.duration = song.duration_secs;
           state.position = 0;
           state.isLiked = likedSongs.has(song.id);
+          publishHistory(song);
           setNowPlayingUi(song);
           loadCover(song);
           loadLyrics(song);
@@ -327,6 +334,7 @@ const App = (() => {
     }
     window.MusicoStore?.set('playback', {
       hasSong: !!s.currentSong,
+      id: s.currentSong?.id || null,
       title: s.currentSong?.title || '',
       artist: s.currentSong ? (s.currentSong.artist || '') : '',
       artGrad: s.currentSong ? artFor(s.currentSong) : null,
@@ -336,6 +344,22 @@ const App = (() => {
       duration: s.duration || 0,
       volume: s.volume,
     });
+  }
+
+  function publishHistory(song) {
+    if (!song) return;
+    let thumb = null;
+    if (String(song.id).startsWith('yt:')) {
+      thumb = window.Online?.trackMap?.get(String(song.id).slice(3))?.thumbnail || null;
+    }
+    const entry = {
+      id: song.id, title: song.title, artist: song.artist,
+      album: song.album || '', duration_secs: song.duration_secs,
+      artGrad: artFor(song), thumb,
+    };
+    const hist = (window.MusicoStore?.get('history') || []).filter((h) => h.id !== song.id);
+    hist.unshift(entry);
+    window.MusicoStore?.set('history', hist.slice(0, 20));
   }
 
   // ─── Cover Art (disk-cached thumbnails, fetched per song) ─────────────────
@@ -429,6 +453,7 @@ const App = (() => {
   // ─── Queue Rendering ──────────────────────────────────────────────────────
   function renderQueue(songs) {
     state.queue = songs || [];
+    window.MusicoStore?.set('queue', state.queue);
     const container = document.getElementById('queue-list');
     if (!container) return;
 

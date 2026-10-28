@@ -116,6 +116,16 @@ pub fn previous(handle: AppHandle, state: State<AppState>) -> Result<(), String>
     }
 }
 
+/// Toggles autoplay (keep playing when the queue runs dry) and persists it.
+#[tauri::command]
+pub fn set_autoplay(state: State<AppState>, enabled: bool) -> Result<(), String> {
+    let mut settings = state.settings.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    settings.autoplay = enabled;
+    settings.save()?;
+    *state.settings.lock().unwrap_or_else(|e| e.into_inner()) = settings;
+    Ok(())
+}
+
 /// Sets shuffle/repeat modes (0=off, shuffle: 2=smart radio; repeat: 1=one, 2=all)
 /// and persists them.
 #[tauri::command]
