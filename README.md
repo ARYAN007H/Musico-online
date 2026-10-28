@@ -1,9 +1,9 @@
 # Musico Online
 
-**Private companion repo to [Musico](https://github.com/ARYAN007H/Musico)** — adds free online
-music playback on top of the offline player. Kept private because the streaming layer is
-ToS-gray-area scraping (same technique as Metrolist / InnerTune / RiMusic), and that code should
-never ship in the public release.
+**Companion repo to [Musico](https://github.com/ARYAN007H/Musico)** — the clean-room,
+Apple Music-class rebuild of the player with free online music. The streaming layer uses the
+same public technique as Metrolist / InnerTune / RiMusic (InnerTube + yt-dlp); it lives here,
+**not** in the offline Musico release, and is for personal use.
 
 ## Robustness & capability notes (v2 polish, 2026-10-28)
 
@@ -80,7 +80,7 @@ cargo test --workspace   # ~73 tests incl. live audio-device e2e
 ## Releases
 
 Tag a `v*` version and GitHub Actions builds it (Linux only — macOS Actions
-minutes bill 10× on private repos, and the streaming layer targets the Linux
+minutes bill 10×, and the streaming layer targets the Linux
 daily driver):
 
 ```sh

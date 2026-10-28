@@ -94,6 +94,6 @@ jobs:
             `.tar.gz`. Install yt-dlp first (`pacman -S yt-dlp` or
             `pip install yt-dlp`) — the Browse screen warns if it's missing.
 
-            Streams cache to `~/.cache/musico/online/` (1 GB LRU cap).
-            This build is private-distribution only; the streaming layer is
-            ToS-gray-area and must never ship in the public Musico repo.
+            Streams cache to `~/.cache/musico-online/online/` (1 GB LRU cap).
+            Personal-use build: the streaming layer is ToS-gray-area and stays
+            out of the offline Musico release.
