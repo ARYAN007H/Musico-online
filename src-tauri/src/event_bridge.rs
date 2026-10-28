@@ -173,9 +173,11 @@ fn advance_from(handle: &AppHandle, ended: Option<&PlaybackEvent>, allow_online_
         }
     }
 
-    // 4. Smart Radio: top recommendation anchored on the current song
-    //    (also fires when autoplay is on, regardless of shuffle mode)
-    if (shuffle == 2 && smart_recs) || autoplay {
+    // 4. Smart Radio: top recommendation anchored on the current song.
+    //    Fires for shuffle mode 2, or whenever autoplay is on — both gated by
+    //    smart_recs, which means "use the recommender" globally.  (Online
+    //    radio above is catalog-driven and intentionally independent.)
+    if smart_recs && (shuffle == 2 || autoplay) {
         if let Some(rec) = &state.recommender {
             let current_id = eng
                 .state()

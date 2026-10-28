@@ -146,3 +146,5 @@
 @media (prefers-reduced-motion: reduce) {
   .queue-panel { animation: none; }
 }
+
+body.player-fullscreen .queue-panel { display: none; }

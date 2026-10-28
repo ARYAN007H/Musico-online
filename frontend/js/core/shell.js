@@ -73,7 +73,7 @@ function Sidebar() {
       </svg>
       <div class="brand-text">
         <div class="brand-name">MUSICO</div>
-        <div class="brand-sub">v0.6.0</div>
+        <div class="brand-sub">v0.6.1</div>
       </div>
     </div>
     <nav class="side-nav" aria-label="Main">
@@ -221,7 +221,7 @@ function QueueRow({ song, current, onPlay }) {
   return html`
     <div class="qp-row ${current ? 'qp-current' : ''}" role="button" tabindex="0"
          aria-label="Play ${song.title}" onClick=${onPlay}
-         onKeyDown=${(e) => { if (e.key === 'Enter') onPlay(); }}>
+         onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlay(); } }}>
       <div class="qp-art" style=${{ background: bg }} aria-hidden="true" />
       <div class="qp-meta">
         <div class="qp-title">${song.title}</div>
@@ -240,7 +240,9 @@ function QueuePanel() {
   if (!open) return null;
 
   const playSong = (song) => window.App?.playSong?.(song);
-  const upcoming = queue.filter((q) => q.id !== pb.id);
+  // Drop exactly ONE leading copy of the current song (it may legitimately
+  // be queued again for replay).
+  const upcoming = queue[0]?.id === pb.id ? queue.slice(1) : queue;
 
   return html`
     <aside class="queue-panel" role="complementary" aria-label="Playing Next">
@@ -274,9 +276,12 @@ function QueuePanel() {
               onClick=${() => {
                 const nv = !autoplay;
                 Store.set('autoplay', nv);
+                // Sync the legacy snapshot: persistSettings round-trips the
+                // whole settings object — a stale copy would silently revert.
+                if (window.App?.state?.settings) window.App.state.settings.autoplay = nv;
                 window.Bridge?.invoke?.('set_autoplay', { enabled: nv });
               }}>
-        <input type="checkbox" role="switch" checked=${autoplay} tabindex="-1" aria-hidden="true"
+        <input type="checkbox" checked=${autoplay} tabindex="-1" aria-hidden="true"
                style="pointer-events: none" />
         <span>Autoplay — keep the music going</span>
       </button>
