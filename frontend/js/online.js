@@ -350,3 +350,4 @@ const Online = (() => {
 
   return { search, playTrack, enqueueTrack, toggleFullscreen, trackMap };
 })();
+window.Online = Online;

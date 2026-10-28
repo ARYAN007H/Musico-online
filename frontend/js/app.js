@@ -75,6 +75,12 @@ const App = (() => {
   // ─── Initialization ────────────────────────────────────────────────────────
   async function init() {
     setupNavigation();
+    // Router owns history; _activateView renders.  Emits the current view now.
+    if (window.MusicoRouter) {
+      window.MusicoRouter.init((view) => _activateView(view));
+    } else {
+      _activateView(state.currentView);
+    }
     setupSettingsTabs();
     setupSearch();
     setupSortControls();
@@ -284,6 +290,7 @@ const App = (() => {
         if (window.Seek && typeof Seek.isDragging === 'function' && Seek.isDragging()) break;
         state.position = ev.position_secs;
         updateProgress();
+        publishPlayback();
         updateLyricsHighlight(ev.position_secs);
         break;
       case 'Paused':
@@ -302,11 +309,33 @@ const App = (() => {
         break;
       case 'VolumeChanged':
         Knob.setVolume(ev.volume, false);
+        state.volume = ev.volume;
+        publishPlayback();
         break;
       case 'Error':
         showError(ev.message || 'Playback error');
         break;
     }
+  }
+
+  // ─── Store publishing (Preact shell consumption) ──────────────────────────
+  function publishPlayback() {
+    const s = state;
+    let thumb = null;
+    if (s.currentSong && String(s.currentSong.id).startsWith('yt:')) {
+      thumb = window.Online?.trackMap?.get(String(s.currentSong.id).slice(3))?.thumbnail || null;
+    }
+    window.MusicoStore?.set('playback', {
+      hasSong: !!s.currentSong,
+      title: s.currentSong?.title || '',
+      artist: s.currentSong ? (s.currentSong.artist || '') : '',
+      artGrad: s.currentSong ? artFor(s.currentSong) : null,
+      thumb,
+      isPlaying: !!s.isPlaying,
+      position: s.position || 0,
+      duration: s.duration || 0,
+      volume: s.volume,
+    });
   }
 
   // ─── Cover Art (disk-cached thumbnails, fetched per song) ─────────────────
@@ -369,6 +398,7 @@ const App = (() => {
   function setNowPlayingUi(song) {
     document.getElementById('np-title').textContent = song.title;
     document.getElementById('np-artist').textContent = `${song.artist} · ${song.album}`;
+    publishPlayback();
     document.getElementById('time-total').textContent = formatTime(song.duration_secs);
     document.getElementById('time-current').textContent = formatTime(state.position);
 
@@ -518,27 +548,36 @@ const App = (() => {
   }
 
   // ─── Navigation ────────────────────────────────────────────────────────────
+  // Delegated: covers Preact-rendered sidebar items, the static bottom pill,
+  // and anything future.  The router owns history; _activateView owns DOM.
   function setupNavigation() {
-    const navItems = document.querySelectorAll('.nav-item');
-    navItems.forEach(item => {
-      item.addEventListener('click', () => {
-        const view = item.dataset.view;
-        navigateTo(view);
-      });
+    document.addEventListener('click', (e) => {
+      // .nav-item scope: other [data-view] attrs (library list/grid toggles)
+      // are view preferences, not navigation.
+      const item = e.target.closest('.nav-item[data-view]');
+      if (!item || item.disabled) return;
+      navigateTo(item.dataset.view);
     });
   }
 
   function navigateTo(viewName) {
+    // Router owns the history stack; _activateView does the DOM switch.
+    if (window.MusicoRouter) MusicoRouter.navigate(viewName);
+    else _activateView(viewName);
+  }
+
+  function _activateView(viewName) {
     state.currentView = viewName;
+    window.MusicoStore?.set('view', viewName);
 
     // Update views
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     const target = document.getElementById(`view-${viewName}`);
     if (target) target.classList.add('active');
 
-    // Update nav items
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    const activeNav = document.querySelector(`.nav-item[data-view="${viewName}"]`);
+    // Bottom pill active state (sidebar highlight is Preact/store-driven)
+    document.querySelectorAll('#bottom-nav .nav-item').forEach(n => n.classList.remove('active'));
+    const activeNav = document.querySelector(`#bottom-nav .nav-item[data-view="${viewName}"]`);
     if (activeNav) activeNav.classList.add('active');
 
     // Dock lives in the sidebar (≥860px) — show whenever a song exists.
@@ -785,6 +824,7 @@ const App = (() => {
   }
 
   function updatePlayState() {
+    publishPlayback();
     const playing = state.isPlaying;
 
     // Vinyl
@@ -1264,8 +1304,21 @@ const App = (() => {
     renderQueue,
     artFor,
     showToast,
+    transport: {
+      toggle: () => togglePlay(),
+      next: () => Bridge.invoke('next'),
+      prev: () => Bridge.invoke('previous'),
+      seek: (secs) => {
+        state.position = secs;
+        updateProgress();
+        Bridge.invoke('seek', { positionSecs: secs });
+      },
+    },
   };
 })();
+
+// Modules (Preact shell) resolve globals via window, not script scope.
+window.App = App;
 
   // ─── Toasts (errors, engine warnings, action feedback) ────────────────────
   let toastTimer = null;

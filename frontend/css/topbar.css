@@ -1,0 +1,217 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   MUSICO ONLINE — topbar.css
+   Apple Music-style persistent transport LCD + shell grid overrides.
+   Loads after layout.css; overrides #app to a [topbar / sidebar+content] grid.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── App grid: topbar spans the full width, sidebar + content below ────────── */
+#app {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  grid-template-rows: 64px 1fr;
+  grid-template-areas:
+    "topbar topbar"
+    "sidebar content";
+}
+
+#topbar-root { grid-area: topbar; }
+#sidebar { grid-area: sidebar; min-height: 0; }
+#content-area { grid-area: content; min-height: 0; }
+
+/* ── Sidebar group labels (Listen / Library / Settings) ────────────────────── */
+.nav-group { display: flex; flex-direction: column; gap: 2px; }
+
+.nav-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-muted, inherit);
+  padding: var(--space-4, 16px) var(--space-4, 16px) 4px;
+  user-select: none;
+}
+
+.nav-group-bottom { margin-top: auto; }
+
+.nav-item.soon { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Topbar ─────────────────────────────────────────────────────────────────── */
+.topbar-root { z-index: 60; }
+
+.topbar {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4, 16px);
+  padding: 0 var(--space-5, 20px);
+  background: color-mix(in srgb, var(--surface-base, var(--surface)) 86%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border-subtle, transparent);
+}
+
+.topbar-left,
+.topbar-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.topbar-right { margin-left: auto; }
+
+.lcd-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary, inherit);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+.lcd-btn:hover:not(:disabled) { background: var(--accent-tint, rgba(157, 140, 255, 0.14)); color: var(--accent-text, inherit); }
+.lcd-btn:active:not(:disabled) { transform: scale(0.94); }
+.lcd-btn:disabled { opacity: 0.3; cursor: default; }
+.lcd-btn svg { width: 17px; height: 17px; }
+
+.lcd-play {
+  background: var(--accent, #9d8cff);
+  color: var(--accent-text, #fff);
+}
+.lcd-play:hover:not(:disabled) { background: var(--accent, #9d8cff); filter: brightness(1.08); }
+.lcd-play svg { width: 19px; height: 19px; }
+
+.lcd-on { color: var(--accent-text, inherit); background: var(--accent-tint, rgba(157, 140, 255, 0.18)); }
+
+/* ── The LCD (center) ───────────────────────────────────────────────────────── */
+.topbar-lcd {
+  flex: 1;
+  min-width: 0;
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: var(--surface-raised, rgba(0, 0, 0, 0.06));
+  box-shadow: var(--shadow-inset, inset 1px 1px 4px rgba(0, 0, 0, 0.06));
+}
+
+.lcd-art {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: var(--surface, #ddd);
+  background-size: cover;
+}
+.lcd-art-empty { display: flex; align-items: center; justify-content: center; }
+.lcd-art-empty::after {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--text-muted, #999);
+  opacity: 0.4;
+}
+
+.lcd-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+
+.lcd-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary, inherit);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lcd-artist {
+  font-size: 11px;
+  color: var(--text-secondary, inherit);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lcd-seek-row { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.lcd-time {
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, inherit);
+  min-width: 26px;
+  text-align: center;
+}
+
+.lcd-seek {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border-subtle, rgba(0, 0, 0, 0.15));
+  outline: none;
+  cursor: pointer;
+}
+.lcd-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent, #9d8cff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.lcd-seek::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent, #9d8cff);
+}
+.lcd-seek:disabled { opacity: 0.35; cursor: default; }
+
+/* ── Volume ─────────────────────────────────────────────────────────────────── */
+.lcd-vol-wrap { display: flex; align-items: center; gap: 6px; }
+.lcd-vol-icon { width: 14px; height: 14px; color: var(--text-muted, inherit); }
+
+.lcd-vol {
+  width: 84px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border-subtle, rgba(0, 0, 0, 0.15));
+  outline: none;
+  cursor: pointer;
+}
+.lcd-vol::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-secondary, #888);
+}
+.lcd-vol::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text-secondary, #888);
+}
+
+/* ── Responsive + fullscreen + motion ───────────────────────────────────────── */
+@media (max-width: 859px) {
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    grid-template-areas: "content";
+  }
+  .topbar-root { display: none; }
+  /* Revert to the legacy flex row layout for the compact shell */
+  #app { display: flex; flex-direction: row; }
+}
+
+body.player-fullscreen .topbar-root { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lcd-btn { transition: none; }
+}
