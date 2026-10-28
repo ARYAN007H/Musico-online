@@ -1,0 +1,329 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   MUSICO — Neumorphic Utility Classes
+   Reusable raised/inset/button primitives
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Keyboard focus ring — visible only for keyboard navigation, never on mouse */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+html {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text-primary);
+  background: var(--surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  height: 100%;
+}
+
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ─── Neumorphic Surfaces ───────────────────────────────────────────────────── */
+
+.neu-raised {
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised);
+  border-radius: var(--radius-lg);
+}
+
+.neu-raised-sm {
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+  border-radius: var(--radius-md);
+}
+
+.neu-raised-lg {
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-lg);
+  border-radius: var(--radius-xl);
+}
+
+.neu-inset {
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset);
+  border-radius: var(--radius-lg);
+}
+
+.neu-inset-sm {
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset-sm);
+  border-radius: var(--radius-md);
+}
+
+.neu-flat {
+  background: var(--surface);
+  box-shadow: none;
+}
+
+/* ─── Neumorphic Buttons ────────────────────────────────────────────────────── */
+
+.neu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-10) var(--space-16);
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: box-shadow var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+}
+
+.neu-btn:hover {
+  box-shadow: var(--neu-raised);
+  transform: translateY(-1px);
+}
+
+.neu-btn:active, .neu-btn.pressed {
+  box-shadow: var(--neu-inset-sm);
+  transform: translateY(0);
+  background: var(--surface-inset);
+}
+
+.neu-btn.active {
+  box-shadow: var(--neu-inset-sm);
+  background: var(--surface-inset);
+  color: var(--accent);
+}
+
+/* Circle buttons */
+.neu-btn-circle {
+  border-radius: var(--radius-circle);
+  padding: 0;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.neu-btn-circle.sm { width: 36px; height: 36px; }
+.neu-btn-circle.lg { width: 64px; height: 64px; }
+.neu-btn-circle.xl { width: 80px; height: 80px; }
+
+/* Accent filled button */
+.neu-btn-accent {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow: 4px 4px 12px var(--accent-shadow),
+              -2px -2px 8px var(--shadow-light),
+              0 4px 16px var(--accent-shadow);
+}
+
+.neu-btn-accent:hover {
+  box-shadow: 6px 6px 16px var(--accent-shadow),
+              -3px -3px 10px var(--shadow-light),
+              0 6px 24px var(--accent-shadow);
+  transform: translateY(-2px);
+}
+
+.neu-btn-accent:active {
+  box-shadow: inset 3px 3px 6px rgba(0,0,0,0.2),
+              inset -2px -2px 4px rgba(255,255,255,0.1);
+  transform: translateY(0);
+}
+
+/* Pill-shaped button */
+.neu-btn-pill {
+  border-radius: var(--radius-pill);
+  padding: var(--space-8) var(--space-20);
+}
+
+/* Ghost button (no neumorphic depth, subtle hover) */
+.neu-btn-ghost {
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-secondary);
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-sm);
+}
+
+.neu-btn-ghost:hover {
+  background: var(--accent-tint);
+  color: var(--accent);
+  box-shadow: none;
+  transform: none;
+}
+
+.neu-btn-ghost.active {
+  background: var(--accent-tint-strong);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+/* ─── Neumorphic Cards ──────────────────────────────────────────────────────── */
+
+.neu-card {
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised);
+  border-radius: var(--radius-lg);
+  padding: var(--space-24);
+}
+
+.neu-card-sm {
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+  border-radius: var(--radius-md);
+  padding: var(--space-16);
+}
+
+.neu-card-inset {
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset);
+  border-radius: var(--radius-md);
+  padding: var(--space-16);
+}
+
+/* ─── Neumorphic Inputs ─────────────────────────────────────────────────────── */
+
+.neu-input {
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset-sm);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-10) var(--space-16);
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  color: var(--text-primary);
+  outline: none;
+  width: 100%;
+  transition: box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.neu-input::placeholder {
+  color: var(--text-muted);
+}
+
+.neu-input:focus {
+  box-shadow: var(--neu-inset-sm), 0 0 0 2px var(--accent-tint-strong);
+}
+
+/* ─── Toggle Switch ─────────────────────────────────────────────────────────── */
+
+.neu-toggle {
+  position: relative;
+  width: 48px;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset-sm);
+  cursor: pointer;
+  transition: background var(--duration-normal) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.neu-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-circle);
+  background: var(--surface-raised);
+  box-shadow: 2px 2px 4px var(--shadow-dark), -1px -1px 3px var(--shadow-light);
+  transition: transform var(--duration-normal) var(--ease-spring),
+              background var(--duration-normal) var(--ease-out);
+}
+
+.neu-toggle.on {
+  background: var(--accent-tint-strong);
+}
+
+.neu-toggle.on::after {
+  transform: translateX(22px);
+  background: var(--accent);
+  box-shadow: 2px 2px 6px var(--accent-shadow), -1px -1px 3px var(--shadow-light);
+}
+
+/* ─── Divider ───────────────────────────────────────────────────────────────── */
+
+.neu-divider {
+  height: 1px;
+  background: var(--divider);
+  margin: var(--space-16) 0;
+  border: none;
+}
+
+/* ─── Badge ─────────────────────────────────────────────────────────────────── */
+
+.neu-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4) var(--space-10);
+  border-radius: var(--radius-pill);
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semi);
+  font-family: var(--font-mono);
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--shadow-dark);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Dark theme: the default thumb is black-on-black — use a light thumb */
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* ─── Utility Classes ───────────────────────────────────────────────────────── */
+
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted { color: var(--text-muted); }
+.text-accent { color: var(--accent); }
+.text-mono { font-family: var(--font-mono); }
+
+.font-display { font-family: var(--font-display); }
+.font-light { font-weight: var(--weight-light); }
+.font-normal { font-weight: var(--weight-normal); }
+.font-medium { font-weight: var(--weight-medium); }
+.font-semi { font-weight: var(--weight-semi); }
+.font-bold { font-weight: var(--weight-bold); }
+
+.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -1,0 +1,183 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   MUSICO — Animations
+   Vinyl spin, micro-interactions, transitions
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Vinyl Spin ────────────────────────────────────────────────────────────── */
+
+@keyframes vinyl-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.vinyl-disc {
+  animation: vinyl-spin 3s linear infinite;
+}
+
+.vinyl-disc.paused {
+  animation-play-state: paused;
+}
+
+/* ─── Tonearm ───────────────────────────────────────────────────────────────── */
+/* The arm hangs from the pivot at the disc's top-right. rotate(0) = straight
+   down at the record's right edge; negative swings it off the record (rest),
+   positive lays it into the grooves (play). Vinyl.setProgress() sweeps it
+   outward→inward with song progress like a real turntable. */
+
+.tonearm {
+  transform-origin: 1.5px 0;
+  transition: transform 0.6s var(--ease-out);
+}
+
+.tonearm.resting {
+  transform: rotate(-14deg);
+}
+
+.tonearm.playing {
+  transform: rotate(8deg);
+}
+
+/* ─── Equalizer Bars ────────────────────────────────────────────────────────── */
+
+@keyframes eq-bar-1 {
+  0%, 100% { height: 30%; }
+  50%      { height: 90%; }
+}
+
+@keyframes eq-bar-2 {
+  0%, 100% { height: 60%; }
+  50%      { height: 30%; }
+}
+
+@keyframes eq-bar-3 {
+  0%, 100% { height: 45%; }
+  50%      { height: 80%; }
+}
+
+.eq-bars span:nth-child(1) { animation: eq-bar-1 0.8s ease-in-out infinite; }
+.eq-bars span:nth-child(2) { animation: eq-bar-2 0.6s ease-in-out infinite 0.1s; }
+.eq-bars span:nth-child(3) { animation: eq-bar-3 0.7s ease-in-out infinite 0.2s; }
+
+/* ─── Pulse / Glow ──────────────────────────────────────────────────────────── */
+
+@keyframes pulse-accent {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-tint-strong); }
+  50%      { box-shadow: 0 0 0 8px transparent; }
+}
+
+.pulse-accent {
+  animation: pulse-accent 2s ease-in-out infinite;
+}
+
+@keyframes glow-accent {
+  0%, 100% { filter: drop-shadow(0 0 4px var(--accent-glow)); }
+  50%      { filter: drop-shadow(0 0 12px var(--accent-glow)); }
+}
+
+/* ─── Fade / Slide Transitions ──────────────────────────────────────────────── */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-scale {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* ─── View Transitions ──────────────────────────────────────────────────────── */
+
+.view {
+  display: none;
+  opacity: 0;
+}
+
+.view.active {
+  display: flex;
+  flex-direction: column;
+  opacity: 1;
+  animation: fade-in-scale var(--duration-slow) var(--ease-out) both;
+}
+
+/* ─── Button Press ──────────────────────────────────────────────────────────── */
+
+@keyframes btn-press {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+/* ─── Knob Indicator Glow ───────────────────────────────────────────────────── */
+
+@keyframes knob-glow {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+/* ─── Shimmer (loading) ─────────────────────────────────────────────────────── */
+
+@keyframes shimmer {
+  0%   { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface-inset) 0%,
+    var(--surface-raised) 50%,
+    var(--surface-inset) 100%
+  );
+  background-size: 200px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* ─── Progress Line Animation ───────────────────────────────────────────────── */
+
+@keyframes progress-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.7; }
+}
+
+/* ─── Mini Vinyl Spin ───────────────────────────────────────────────────────── */
+
+.mini-vinyl-spin {
+  animation: vinyl-spin 2s linear infinite;
+}
+
+.mini-vinyl-spin.paused {
+  animation-play-state: paused;
+}
+
+/* ─── Reduced Motion ──────────────────────────────────────────────────────────
+   Kill spins, pulses and view transitions for users who ask the OS for less
+   motion. Views keep their explicit `opacity: 1` so nothing can be left
+   invisible when animations are disabled. */
+
+@media (prefers-reduced-motion: reduce) {
+  .vinyl-disc,
+  .mini-vinyl-spin,
+  .eq-bars span,
+  .pulse-accent {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

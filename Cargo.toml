@@ -1,0 +1,13 @@
+[workspace]
+members = [
+    "musico_recommender",
+    "musico_playback",
+    "src-tauri"
+]
+resolver = "2"
+
+# Release tuning: smaller binary for shipped artifacts (strip + cross-crate opt).
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,689 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   MUSICO — Now Playing View
+   Vinyl disc, seek bar, transport controls, volume knob, lyrics
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Now Playing Container ─────────────────────────────────────────────────── */
+
+.now-playing {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-20) var(--space-24) 150px;
+  gap: var(--space-16);
+}
+
+/* ─── Vinyl Record Assembly ─────────────────────────────────────────────────── */
+
+.vinyl-container {
+  position: relative;
+  width: var(--vinyl-size);
+  height: var(--vinyl-size);
+  flex-shrink: 0;
+  margin: var(--space-4) 0;
+}
+
+/* The actual vinyl disc */
+.vinyl-disc {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-circle);
+  background: var(--vinyl-color);
+  position: relative;
+  will-change: transform;
+  box-shadow:
+    8px 8px 20px var(--shadow-dark-strong),
+    -6px -6px 16px var(--shadow-light),
+    inset 0 0 60px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+
+/* Vinyl grooves — concentric rings */
+.vinyl-grooves {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-circle);
+  background:
+    repeating-radial-gradient(
+      circle at center,
+      transparent 0px,
+      transparent 3px,
+      rgba(255,255,255,0.03) 3px,
+      rgba(255,255,255,0.03) 4px
+    );
+  pointer-events: none;
+}
+
+/* Vinyl sheen (light reflection) */
+.vinyl-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-circle);
+  background: linear-gradient(
+    135deg,
+    rgba(255,250,240,0.08) 0%,
+    transparent 40%,
+    transparent 60%,
+    rgba(255,250,240,0.04) 100%
+  );
+  pointer-events: none;
+}
+
+/* Album art label in center */
+.vinyl-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--vinyl-label-size);
+  height: 0;
+  padding-bottom: var(--vinyl-label-size);
+  border-radius: var(--radius-circle);
+  overflow: hidden;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.3);
+  border: 3px solid rgba(50,40,30,0.6);
+}
+
+.vinyl-label img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Fallback label (no album art) — carries the song's generated gradient */
+.vinyl-label-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--art-grad, linear-gradient(135deg, var(--accent), var(--accent-secondary)));
+}
+
+.vinyl-label-fallback svg {
+  width: 36%;
+  height: 36%;
+  color: rgba(255,255,255,0.6);
+}
+
+/* Spindle hole */
+.vinyl-spindle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-circle);
+  background: var(--surface);
+  box-shadow: inset 1px 1px 3px var(--shadow-dark);
+  z-index: 5;
+}
+
+/* Tonearm */
+.tonearm-container {
+  position: absolute;
+  top: -10px;
+  right: -14px;
+  width: 110px;
+  height: 170px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.tonearm-base {
+  position: absolute;
+  top: 0;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-circle);
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+}
+
+/* Pivot dot */
+.tonearm-base::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: var(--radius-circle);
+  background: var(--tonearm-metal);
+  opacity: 0.55;
+}
+
+.tonearm-arm {
+  position: absolute;
+  top: 13px;
+  right: 21px;
+  width: 4px;
+  height: 118px;
+  background: var(--tonearm-metal);
+  border-radius: 2px;
+  transform-origin: 2px 0;
+  box-shadow: 1px 1px 3px var(--shadow-dark);
+}
+
+/* Counterweight above the pivot */
+.tonearm-arm::before {
+  content: '';
+  position: absolute;
+  top: -16px;
+  left: -3px;
+  width: 10px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--tonearm-metal);
+  opacity: 0.85;
+}
+
+.tonearm-head {
+  position: absolute;
+  bottom: -4px;
+  left: -4.5px;
+  width: 13px;
+  height: 18px;
+  background: var(--tonearm-metal);
+  border-radius: 3px 3px 5px 5px;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* Vinyl ambient shadow */
+.vinyl-shadow {
+  position: absolute;
+  bottom: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 24px;
+  background: radial-gradient(ellipse, rgba(0,0,0,0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ─── Song Metadata ─────────────────────────────────────────────────────────── */
+
+.song-meta {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 480px;
+}
+
+.song-title {
+  font-size: 28px;
+  font-weight: var(--weight-semi);
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.song-artist {
+  font-size: var(--text-subtitle);
+  font-weight: var(--weight-normal);
+  color: var(--text-secondary);
+}
+
+.song-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  margin-top: var(--space-4);
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-circle);
+  border: none;
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.action-btn:hover {
+  color: var(--accent);
+  box-shadow: var(--neu-raised);
+}
+
+.action-btn:active {
+  box-shadow: var(--neu-inset-sm);
+  background: var(--surface-inset);
+}
+
+.action-btn.liked {
+  color: var(--accent);
+}
+
+.action-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ─── Waveform Visualizer ───────────────────────────────────────────────────── */
+
+.waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 28px;
+  width: 100%;
+  max-width: 480px;
+  padding: 0 var(--space-4);
+  opacity: 0.9;
+}
+
+.wave-bar {
+  width: 3px;
+  border-radius: 1.5px;
+  background: var(--surface-deep);
+  transition: background var(--duration-fast) linear;
+  flex-shrink: 0;
+}
+
+/* Unplayed bars must stay visible on the near-black dark surface */
+[data-theme="dark"] .wave-bar {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.wave-bar.played {
+  background: var(--accent);
+}
+
+.wave-bar.current {
+  background: var(--accent-secondary);
+}
+
+/* ─── Seek Bar ──────────────────────────────────────────────────────────────── */
+
+.seek-container {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.seek-track-wrapper {
+  position: relative;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.seek-track {
+  width: 100%;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset-sm);
+  position: relative;
+  overflow: visible;
+}
+
+.seek-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
+  width: 0%;
+  transition: width 0.1s linear;
+  position: relative;
+}
+
+.seek-thumb {
+  position: absolute;
+  top: 50%;
+  right: -10px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-circle);
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm), 0 2px 8px rgba(0,0,0,0.1);
+  cursor: grab;
+  transition: box-shadow var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out);
+  z-index: 5;
+}
+
+.seek-thumb:hover {
+  box-shadow: var(--neu-raised), 0 2px 12px var(--accent-shadow);
+  transform: translateY(-50%) scale(1.15);
+}
+
+.seek-thumb:active {
+  cursor: grabbing;
+  box-shadow: var(--neu-inset-sm);
+  transform: translateY(-50%) scale(1.05);
+}
+
+/* At position zero the thumb would overhang the track's left edge — hide it */
+.seek-container.at-start .seek-thumb {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Inner accent dot on thumb */
+.seek-thumb::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-circle);
+  background: var(--accent);
+}
+
+.seek-times {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--text-muted);
+}
+
+/* ─── Transport Controls ────────────────────────────────────────────────────── */
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: var(--space-20);
+}
+
+.transport-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-circle);
+  border: none;
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.transport-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.transport-btn:hover {
+  color: var(--text-primary);
+  box-shadow: var(--neu-raised);
+  transform: translateY(-1px);
+}
+
+.transport-btn:active {
+  box-shadow: var(--neu-inset-sm);
+  background: var(--surface-inset);
+  transform: translateY(0);
+}
+
+.transport-btn.active {
+  color: var(--accent-text);
+  box-shadow: var(--neu-inset-sm);
+  background: var(--surface-inset);
+}
+
+/* Play button — large, accent-filled */
+.play-btn-main {
+  width: 68px;
+  height: 68px;
+  border-radius: var(--radius-circle);
+  border: none;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    6px 6px 16px var(--accent-shadow),
+    -4px -4px 10px var(--shadow-light),
+    0 6px 20px var(--accent-shadow);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.play-btn-main svg {
+  width: 28px;
+  height: 28px;
+}
+
+.play-btn-main:hover {
+  box-shadow:
+    8px 8px 20px var(--accent-shadow),
+    -5px -5px 12px var(--shadow-light),
+    0 8px 28px var(--accent-shadow);
+  transform: translateY(-2px) scale(1.04);
+}
+
+.play-btn-main:active {
+  box-shadow:
+    inset 4px 4px 8px rgba(0,0,0,0.25),
+    inset -2px -2px 4px rgba(255,255,255,0.08);
+  transform: translateY(0) scale(0.98);
+}
+
+/* Mode indicator text */
+.mode-indicator {
+  font-size: var(--text-micro);
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.05em;
+}
+
+.mode-indicator .mode-active {
+  color: var(--accent-text);
+}
+
+/* ─── Lyrics Panel ──────────────────────────────────────────────────────────── */
+
+.lyrics-panel {
+  width: 100%;
+  max-width: 480px;
+}
+
+.lyrics-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin-bottom: var(--space-12);
+}
+
+.lyrics-title {
+  font-size: var(--text-nano);
+  font-weight: var(--weight-semi);
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.lyrics-body {
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset);
+  border-radius: var(--radius-md);
+  padding: var(--space-20);
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.lyric-line {
+  font-size: var(--text-body);
+  color: var(--text-muted);
+  line-height: 1.8;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.lyric-line.active {
+  font-size: var(--text-subtitle);
+  font-weight: var(--weight-semi);
+  color: var(--accent);
+}
+
+/* ─── Recommendations ───────────────────────────────────────────────────────── */
+
+.recs-section {
+  width: 100%;
+  max-width: 480px;
+}
+
+.recs-header {
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semi);
+  color: var(--text-muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-10);
+}
+
+/* Horizontal card strip — editorial, distinct from the list rows */
+.recs-cards {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 124px;
+  gap: var(--space-12);
+  overflow-x: auto;
+  padding: 2px 2px var(--space-8);
+}
+
+.rec-card {
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.rec-card:hover { transform: translateY(-2px); }
+
+.rec-art {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  box-shadow: var(--neu-raised-sm), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.rec-art svg {
+  width: 22px;
+  height: 22px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.rec-name {
+  margin-top: var(--space-8);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rec-artist {
+  font-size: var(--text-micro);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+/* ─── Empty State ───────────────────────────────────────────────────────────── */
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-16);
+  padding: var(--space-48);
+}
+
+.empty-icon {
+  width: 100px;
+  height: 100px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  opacity: 0.5;
+}
+
+.empty-icon svg { width: 44px; height: 44px; }
+
+.empty-title {
+  font-size: var(--text-title);
+  font-weight: var(--weight-semi);
+  color: var(--text-primary);
+}
+
+.empty-desc {
+  font-size: var(--text-body);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+  :root {
+    --vinyl-size: 200px;
+  }
+
+  .now-playing {
+    padding: var(--space-20) var(--space-16) 160px;
+    gap: var(--space-16);
+  }
+
+  .song-title { font-size: var(--text-title); }
+  .song-artist { font-size: var(--text-body); }
+
+  .transport { gap: var(--space-12); }
+  .transport-btn { width: 40px; height: 40px; }
+  .play-btn-main { width: 56px; height: 56px; }
+}
+
+/* ─── Lyrics (synced karaoke + unsynced) ─────────────────────────────────── */
+.lyric-line {
+  padding: 5px 12px;
+  font-size: var(--text-body);
+  line-height: 1.45;
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  transition: color 0.3s ease, background 0.3s ease, transform 0.3s ease;
+  cursor: default;
+}
+.lyric-line.active {
+  color: var(--accent-text);
+  font-weight: var(--weight-semi);
+  background: var(--accent-tint);
+  transform: scale(1.02);
+}
+.lyric-line.past {
+  color: var(--text-muted);
+}

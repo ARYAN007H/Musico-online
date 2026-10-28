@@ -1,0 +1,225 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   MUSICO — Design System Tokens
+   Neumorphic Warm Light · M3 Expressive Hint
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  /* ─── Surface Palette ─────────────────────────────────────────────────── */
+  --surface-base:      #e4dcd0;
+  --surface:           #e8e0d4;
+  --surface-raised:    #ede6da;
+  --surface-inset:     #d9d1c5;
+  --surface-deep:      #cfc7bb;
+
+  /* ─── Neumorphic Shadows ──────────────────────────────────────────────── */
+  --shadow-dark:       rgba(155, 140, 120, 0.45);
+  --shadow-light:      rgba(255, 255, 248, 0.75);
+  --shadow-dark-strong: rgba(140, 125, 105, 0.6);
+  --shadow-light-strong: rgba(255, 255, 252, 0.9);
+
+  /* ─── Text Colors ─────────────────────────────────────────────────────── */
+  --text-primary:      #2e2620;
+  --text-secondary:    #6b5f52;  /* ≈5:1 on raised surfaces */
+  --text-muted:        #7a6e5f;  /* ≈4.6:1 — contrast floor for metadata text */
+  --text-disabled:     #a89c8e;  /* decorative/disabled only, never content */
+  --text-on-accent:    #ffffff;
+
+  /* Accent-colored TEXT (active labels on tint surfaces) — WCAG-safe per palette */
+  --accent-text:       #5b4daa;
+
+  /* ─── Dividers & Borders ──────────────────────────────────────────────── */
+  --divider:           rgba(155, 140, 120, 0.18);
+  --border-subtle:     rgba(155, 140, 120, 0.12);
+
+  /* ─── Accent — Nebula (default) ───────────────────────────────────────── */
+  --accent:            #7c6bc4;
+  --accent-secondary:  #a594e0;
+  --accent-tint:       rgba(124, 107, 196, 0.12);
+  --accent-tint-strong: rgba(124, 107, 196, 0.22);
+  --accent-shadow:     rgba(124, 107, 196, 0.30);
+  --accent-glow:       rgba(124, 107, 196, 0.15);
+
+  /* ─── Semantic Colors ─────────────────────────────────────────────────── */
+  --success:           #4caf7c;
+  --warning:           #e0a040;
+  --error:             #d45858;
+
+  /* ─── Typography ──────────────────────────────────────────────────────── */
+  --font-display:      'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:         'DM Mono', 'SF Mono', 'Consolas', monospace;
+
+  --text-hero:         24px;
+  --text-title:        20px;
+  --text-subtitle:     16px;
+  --text-body:         14px;
+  --text-caption:      12px;
+  --text-micro:        11px;
+  --text-nano:         10px;
+
+  --weight-light:      300;
+  --weight-normal:     400;
+  --weight-medium:     500;
+  --weight-semi:       600;
+  --weight-bold:       700;
+
+  /* ─── Spacing ─────────────────────────────────────────────────────────── */
+  --space-2:           2px;
+  --space-4:           4px;
+  --space-6:           6px;
+  --space-8:           8px;
+  --space-10:          10px;
+  --space-12:          12px;
+  --space-16:          16px;
+  --space-20:          20px;
+  --space-24:          24px;
+  --space-32:          32px;
+  --space-40:          40px;
+  --space-48:          48px;
+  --space-64:          64px;
+
+  /* ─── Radii ───────────────────────────────────────────────────────────── */
+  --radius-xs:         6px;
+  --radius-sm:         10px;
+  --radius-md:         14px;
+  --radius-lg:         20px;
+  --radius-xl:         28px;
+  --radius-pill:       50px;
+  --radius-circle:     50%;
+
+  /* ─── Neumorphic Presets ──────────────────────────────────────────────── */
+  --neu-raised:        6px 6px 14px var(--shadow-dark), -6px -6px 14px var(--shadow-light);
+  --neu-raised-sm:     3px 3px 7px var(--shadow-dark), -3px -3px 7px var(--shadow-light);
+  --neu-raised-lg:     10px 10px 24px var(--shadow-dark), -10px -10px 24px var(--shadow-light);
+  --neu-inset:         inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
+  --neu-inset-sm:      inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light);
+  --neu-inset-lg:      inset 6px 6px 14px var(--shadow-dark), inset -6px -6px 14px var(--shadow-light);
+  --neu-flat:          none;
+
+  /* ─── Transitions ─────────────────────────────────────────────────────── */
+  --ease-out:          cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring:       cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast:     120ms;
+  --duration-normal:   200ms;
+  --duration-slow:     350ms;
+
+  /* ─── Z-Index Layers ──────────────────────────────────────────────────── */
+  --z-base:            1;
+  --z-raised:          10;
+  --z-mini-player:     100;
+  --z-nav:             200;
+  --z-overlay:         500;
+  --z-modal:           1000;
+
+  /* ─── Vinyl ───────────────────────────────────────────────────────────── */
+  --vinyl-size:        240px;
+  --vinyl-color:       #1a1410;
+  --vinyl-groove:      rgba(40, 35, 28, 0.7);
+  --vinyl-sheen:       rgba(255, 245, 230, 0.06);
+  --vinyl-label-size:  38%;
+
+  /* ─── Knob ────────────────────────────────────────────────────────────── */
+  --knob-size:         72px;
+  --knob-track-width:  4px;
+
+  /* ─── Tonearm ─────────────────────────────────────────────────────────── */
+  --tonearm-metal:     #7a6e60;
+}
+
+/* ─── Palette Overrides ─────────────────────────────────────────────────────── */
+
+[data-palette="nebula"] {
+  --accent:            #7c6bc4;
+  --accent-secondary:  #a594e0;
+  --accent-tint:       rgba(124, 107, 196, 0.12);
+  --accent-tint-strong: rgba(124, 107, 196, 0.22);
+  --accent-shadow:     rgba(124, 107, 196, 0.30);
+  --accent-glow:       rgba(124, 107, 196, 0.15);
+  --accent-text:       #5b4daa;
+}
+
+[data-palette="sakura"] {
+  --accent:            #d4548a;
+  --accent-secondary:  #e88aab;
+  --accent-tint:       rgba(212, 84, 138, 0.12);
+  --accent-tint-strong: rgba(212, 84, 138, 0.22);
+  --accent-shadow:     rgba(212, 84, 138, 0.30);
+  --accent-glow:       rgba(212, 84, 138, 0.15);
+  --accent-text:       #a83a66;
+}
+
+[data-palette="aurora"] {
+  --accent:            #2da67a;
+  --accent-secondary:  #5cc49e;
+  --accent-tint:       rgba(45, 166, 122, 0.12);
+  --accent-tint-strong: rgba(45, 166, 122, 0.22);
+  --accent-shadow:     rgba(45, 166, 122, 0.30);
+  --accent-glow:       rgba(45, 166, 122, 0.15);
+  --accent-text:       #1d7152;
+}
+
+[data-palette="ocean"] {
+  --accent:            #2e96cc;
+  --accent-secondary:  #68b8e0;
+  --accent-tint:       rgba(46, 150, 204, 0.12);
+  --accent-tint-strong: rgba(46, 150, 204, 0.22);
+  --accent-shadow:     rgba(46, 150, 204, 0.30);
+  --accent-glow:       rgba(46, 150, 204, 0.15);
+  --accent-text:       #1f6f9e;
+}
+
+[data-palette="ember"] {
+  --accent:            #d48a3c;
+  --accent-secondary:  #e8a868;
+  --accent-tint:       rgba(212, 138, 60, 0.12);
+  --accent-tint-strong: rgba(212, 138, 60, 0.22);
+  --accent-shadow:     rgba(212, 138, 60, 0.30);
+  --accent-glow:       rgba(212, 138, 60, 0.15);
+  --accent-text:       #96571c;
+}
+
+[data-palette="mono"] {
+  --accent:            #7a7a80;
+  --accent-secondary:  #a0a0a6;
+  --accent-tint:       rgba(122, 122, 128, 0.12);
+  --accent-tint-strong: rgba(122, 122, 128, 0.22);
+  --accent-shadow:     rgba(122, 122, 128, 0.30);
+  --accent-glow:       rgba(122, 122, 128, 0.15);
+  --accent-text:       #4e4e54;
+}
+
+/* ─── Dark Theme ──────────────────────────────────────────────────────────────
+   Celestia dark surfaces — the design language Musico's engine-era mock used.
+   Accents carry over per-palette; tints get a touch more presence on dark.   */
+
+[data-theme="dark"] {
+  --surface-base:      #0a0b10;
+  --surface:           #0e0f16;
+  --surface-raised:    #161721;
+  --surface-inset:     #0a0b11;
+  --surface-deep:      #060709;
+
+  --shadow-dark:       rgba(0, 0, 0, 0.65);
+  --shadow-light:      rgba(255, 255, 255, 0.045);
+  --shadow-dark-strong: rgba(0, 0, 0, 0.8);
+  --shadow-light-strong: rgba(255, 255, 255, 0.07);
+
+  --text-primary:      #e2e4f0;
+  --text-secondary:    #9296ad;
+  --text-muted:        #8a8fa6;  /* ≈5.5:1 on raised — metadata stays readable */
+  --text-disabled:     #4a4d63;
+
+  --divider:           rgba(255, 255, 255, 0.08);
+  --border-subtle:     rgba(255, 255, 255, 0.08);
+
+  --tonearm-metal:     #6d7590;
+}
+
+/* Slightly stronger accent tints on dark for visibility */
+[data-theme="dark"][data-palette="nebula"]  { --accent-tint: rgba(124,107,196,0.16); --accent-tint-strong: rgba(124,107,196,0.30); --accent-text: #b6aaff; }
+[data-theme="dark"][data-palette="sakura"]  { --accent-tint: rgba(212,84,138,0.16);  --accent-tint-strong: rgba(212,84,138,0.30); --accent-text: #f2a8c6; }
+[data-theme="dark"][data-palette="aurora"]  { --accent-tint: rgba(45,166,122,0.16);  --accent-tint-strong: rgba(45,166,122,0.30); --accent-text: #7fd9b5; }
+[data-theme="dark"][data-palette="ocean"]   { --accent-tint: rgba(46,150,204,0.16);  --accent-tint-strong: rgba(46,150,204,0.30); --accent-text: #88c9ee; }
+[data-theme="dark"][data-palette="ember"]   { --accent-tint: rgba(212,138,60,0.16);  --accent-tint-strong: rgba(212,138,60,0.30); --accent-text: #f2bd8c; }
+[data-theme="dark"][data-palette="mono"]    { --accent-tint: rgba(150,150,160,0.16); --accent-tint-strong: rgba(150,150,160,0.30); --accent-text: #c9c9cf; }

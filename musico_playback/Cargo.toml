@@ -1,0 +1,26 @@
+[package]
+name = "musico_playback"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.78"
+description = "Audio playback engine for Musico — lock-free, thread-safe, PipeWire-compatible"
+license = "MIT"
+
+[lib]
+name = "musico_playback"
+path = "src/lib.rs"
+
+[dependencies]
+cpal = { version = "0.15", features = ["wasm-bindgen"] }
+symphonia = { version = "0.5", features = ["all"] }
+rubato = "0.15"
+ringbuf = "0.3"
+crossbeam-channel = "0.5"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
+log = "0.4"
+
+[[example]]
+name = "play_file"
+path = "examples/play_file.rs"

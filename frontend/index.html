@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en" data-palette="nebula">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Musico — Neumorphic Music Player</title>
+<meta name="description" content="Musico — A beautiful neumorphic music player with skeuomorphic vinyl disc, rotary volume knob, and M3 Expressive navigation"/>
+
+<!-- Apply the persisted theme BEFORE stylesheets resolve — dark-theme users
+     otherwise get a white flash on every launch. -->
+<script>
+  try {
+    var t = localStorage.getItem('musico-theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
+
+<!-- Asset URLs carry ?v= — bump on frontend changes so the WebKit webview
+     can't serve stale cached scripts/styles (bit us once: old bridge.js
+     kept breaking IPC after an update). -->
+<link rel="stylesheet" href="css/tokens.css?v=0.4.0"/>
+<link rel="stylesheet" href="css/neumorphic.css?v=0.4.0"/>
+<link rel="stylesheet" href="css/animations.css?v=0.4.0"/>
+<link rel="stylesheet" href="css/layout.css?v=0.4.0"/>
+<link rel="stylesheet" href="css/now-playing.css?v=0.4.0"/>
+<link rel="stylesheet" href="css/library.css?v=0.4.0"/>
+<link rel="stylesheet" href="css/queue.css?v=0.4.0"/>
+<link rel="stylesheet" href="css/settings.css?v=0.4.0"/>
+<link rel="stylesheet" href="css/online.css?v=0.4.0"/>
+</head>
+<body>
+
+<div id="app">
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       SIDEBAR (≥860px) — brand, navigation, now-playing dock
+       ══════════════════════════════════════════════════════════════════════════ -->
+  <aside id="sidebar">
+    <div class="side-brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 3v2.5M12 18.5V21"/>
+      </svg>
+      <div class="brand-text">
+        <div class="brand-name">MUSICO</div>
+        <div class="brand-sub">v0.3.0</div>
+      </div>
+    </div>
+
+    <nav class="side-nav" aria-label="Main">
+      <button class="nav-item active" data-view="browse">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+        <span>Browse</span>
+      </button>
+      <button class="nav-item" data-view="now-playing">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3"/></svg>
+        <span>Now Playing</span>
+      </button>
+      <button class="nav-item" data-view="library">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+        <span>Library</span>
+      </button>
+      <button class="nav-item" data-view="queue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <span>Queue</span>
+      </button>
+      <button class="nav-item" data-view="playlists">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        <span>Playlists</span>
+      </button>
+      <button class="nav-item" data-view="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
+  </aside>
+
+  <div id="content-area">
+  <main id="main-content">
+
+    <!-- ── BROWSE (home) ──────────────────────────────────────────────────── -->
+    <section id="view-browse" class="view active">
+      <div class="browse">
+        <header class="browse-header">
+          <h1 class="browse-title">Browse</h1>
+          <p class="browse-sub">Search YouTube Music and play it right here — downloads cache locally via yt-dlp.</p>
+        </header>
+
+        <form class="browse-search" id="browse-form" role="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="browse-search-icon"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="search" id="browse-input" placeholder="Songs, artists, albums…" autocomplete="off"
+                 aria-label="Search YouTube Music"/>
+          <button type="submit" class="browse-search-btn" id="browse-submit">Search</button>
+        </form>
+
+        <div class="browse-hints" id="browse-hints">
+          <span class="browse-hint-label">Try</span>
+          <button class="browse-chip" data-q="lofi beats">lofi beats</button>
+          <button class="browse-chip" data-q="daft punk">daft punk</button>
+          <button class="browse-chip" data-q="synthwave 80s">synthwave 80s</button>
+          <button class="browse-chip" data-q="aac m4a test tone">something new</button>
+        </div>
+
+        <div class="browse-status" id="browse-status" role="status"></div>
+        <div class="browse-results" id="browse-results"></div>
+      </div>
+    </section>
+
+    <!-- ── NOW PLAYING ────────────────────────────────────────────────────── -->
+    <section id="view-now-playing" class="view">
+      <div class="now-playing" id="now-playing-scroll">
+
+        <!-- Art square (normal mode) — the vinyl only appears fullscreen -->
+        <div class="np-art" id="np-art" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="np-art-icon">
+            <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </div>
+
+        <!-- Vinyl Record Assembly (fullscreen only) -->
+        <div class="vinyl-container">
+          <div class="vinyl-disc paused" id="vinyl-disc">
+            <div class="vinyl-grooves"></div>
+            <div class="vinyl-label" id="vinyl-label">
+              <div class="vinyl-label-fallback" id="vinyl-fallback">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <circle cx="12" cy="12" r="10"/>
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M12 2v3M12 19v3"/>
+                </svg>
+              </div>
+            </div>
+            <div class="vinyl-spindle"></div>
+            <div class="vinyl-sheen"></div>
+          </div>
+          <div class="vinyl-shadow"></div>
+          <!-- Tonearm -->
+          <div class="tonearm-container">
+            <div class="tonearm-base"></div>
+            <div class="tonearm-arm tonearm resting" id="tonearm">
+              <div class="tonearm-head"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Song Metadata -->
+        <div class="song-meta">
+          <div class="song-title" id="np-title">Nothing Playing</div>
+          <div class="song-artist" id="np-artist">Pick something from your library</div>
+          <div class="song-actions">
+            <button class="action-btn" id="btn-like" title="Like" aria-label="Like this song" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+            </button>
+            <button class="action-btn" id="btn-queue-current" title="Add to Queue" aria-label="Add to queue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button class="action-btn" id="btn-fullscreen" title="Fullscreen player" aria-label="Open fullscreen player">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/></svg>
+            </button>
+          </div>
+          <button class="fs-close" id="btn-fs-close" title="Close fullscreen" aria-label="Close fullscreen player">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Waveform Visualizer -->
+        <div class="waveform" id="waveform"></div>
+
+        <!-- Seek Bar -->
+        <div class="seek-container">
+          <div class="seek-track-wrapper" id="seek-wrapper" role="slider" tabindex="0"
+               aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+               aria-valuetext="0:00">
+            <div class="seek-track">
+              <div class="seek-fill" id="seek-fill" style="width:0%">
+                <div class="seek-thumb" id="seek-thumb"></div>
+              </div>
+            </div>
+          </div>
+          <div class="seek-times">
+            <span id="time-current">0:00</span>
+            <span id="time-total">0:00</span>
+          </div>
+        </div>
+
+        <!-- Transport Controls -->
+        <div class="transport">
+          <button class="transport-btn" id="btn-shuffle" title="Shuffle: Off" aria-label="Shuffle: Off" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+          </button>
+          <button class="transport-btn" id="btn-prev" title="Previous" aria-label="Previous track">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12l8.5 6V6z"/></svg>
+          </button>
+          <button class="play-btn-main" id="btn-play" title="Play" aria-label="Play or pause">
+            <svg viewBox="0 0 24 24" fill="currentColor" id="play-icon"><polygon points="8,5 20,12 8,19"/></svg>
+          </button>
+          <button class="transport-btn" id="btn-next" title="Next" aria-label="Next track">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+          </button>
+          <button class="transport-btn" id="btn-repeat" title="Repeat: Off" aria-label="Repeat: Off" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+          </button>
+        </div>
+
+        <!-- Mode indicator -->
+        <div class="mode-indicator" id="mode-indicator"></div>
+
+        <!-- Lyrics -->
+        <div class="recs-section" id="lyrics-section" style="display:none;">
+          <div class="recs-header">LYRICS</div>
+          <div id="lyrics-list" style="max-height:200px; overflow-y:auto; padding:0 4px;"></div>
+        </div>
+
+        <!-- Recommendations -->
+        <div class="recs-section" id="recs-section">
+          <div class="recs-header">UP NEXT — RECOMMENDED</div>
+          <div class="recs-cards" id="recs-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ── LIBRARY ────────────────────────────────────────────────────────── -->
+    <section id="view-library" class="view">
+      <div class="library">
+        <div class="library-header">
+          <span class="library-title">Library</span>
+          <span class="library-count" id="lib-count">847 songs</span>
+          <div class="search-bar" id="search-bar">
+            <div class="search-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            </div>
+            <input type="text" placeholder="Search your library..." id="search-input" aria-label="Search your library"/>
+            <button class="search-clear" id="search-clear">✕</button>
+          </div>
+          <div class="view-toggle">
+            <button class="view-toggle-btn active" data-view="list" id="toggle-list" title="List view">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+            </button>
+            <button class="view-toggle-btn" data-view="grid" id="toggle-grid" title="Grid view">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="5.5" height="5.5" rx="1"/><rect x="9.5" y="1" width="5.5" height="5.5" rx="1"/><rect x="1" y="9.5" width="5.5" height="5.5" rx="1"/><rect x="9.5" y="9.5" width="5.5" height="5.5" rx="1"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="sort-bar">
+          <span class="sort-label">Sort by</span>
+          <button class="sort-pill active" data-sort="title">Title <span class="sort-arrow">↑</span></button>
+          <button class="sort-pill" data-sort="artist">Artist</button>
+          <button class="sort-pill" data-sort="album">Album</button>
+          <button class="sort-pill" data-sort="duration">Duration</button>
+          <button class="sort-pill" id="filter-liked" aria-pressed="false" title="Show only liked songs">♥ Liked</button>
+        </div>
+
+        <!-- List view -->
+        <div class="song-list" id="song-list-view">
+          <!-- Demo songs -->
+        </div>
+
+        <!-- Grid view (hidden by default) -->
+        <div class="album-grid" id="album-grid-view" style="display:none;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ── QUEUE ──────────────────────────────────────────────────────────── -->
+    <section id="view-queue" class="view">
+      <div class="queue-view">
+        <div class="queue-header">
+          <span class="queue-title">Queue</span>
+          <span class="queue-count" id="queue-count">0 songs</span>
+          <button class="queue-clear" id="btn-clear-queue" hidden aria-label="Clear the queue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/></svg>
+            Clear
+          </button>
+        </div>
+        <div class="queue-list" id="queue-list">
+          <div class="queue-empty" id="queue-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <div style="text-align:center;">
+              <div style="font-weight:var(--weight-semi); color:var(--text-primary); margin-bottom:4px;">Queue is empty</div>
+              <div style="font-size:var(--text-caption);">Add songs from Library or let Smart Radio fill it</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PLAYLISTS ──────────────────────────────────────────────────────── -->
+    <section id="view-playlists" class="view">
+      <div class="queue-view">
+        <div class="queue-header">
+          <span class="queue-title">Playlists &amp; Insights</span>
+          <span class="queue-count" id="stats-streak"></span>
+        </div>
+
+        <div class="s-card" style="margin: 0 var(--space-16) var(--space-12);">
+          <div class="s-card-header">Listening Stats</div>
+          <div id="stats-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-8); padding:var(--space-12) var(--space-16);">
+            <!-- Populated by JS -->
+          </div>
+          <div id="stats-empty" class="queue-empty" style="display:none; padding:var(--space-20);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <div style="text-align:center;">
+              <div style="font-weight:var(--weight-semi); color:var(--text-primary); margin-bottom:4px;">No listening history yet</div>
+              <div style="font-size:var(--text-caption);">Play some songs — stats appear here</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="s-card" style="margin: 0 var(--space-16) var(--space-12);">
+          <div class="s-card-header">Top Songs</div>
+          <div class="song-list" id="top-songs-list" style="padding:0 var(--space-8) var(--space-8);">
+            <!-- Populated by JS -->
+          </div>
+          <div id="top-songs-empty" class="queue-empty" style="padding:var(--space-20);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <div style="text-align:center;">
+              <div style="font-weight:var(--weight-semi); color:var(--text-primary); margin-bottom:4px;">No plays yet</div>
+              <div style="font-size:var(--text-caption);">Your most-played songs will appear here</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="s-card" style="margin: 0 var(--space-16);">
+          <div class="s-card-header">Smart Playlists</div>
+          <div class="queue-list" id="playlists-list" style="padding:0 var(--space-8) var(--space-8);">
+            <div class="queue-empty" id="playlists-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+              <div style="text-align:center;">
+                <div style="font-weight:var(--weight-semi); color:var(--text-primary); margin-bottom:4px;">No playlists yet</div>
+                <div style="font-size:var(--text-caption);">Smart playlists will appear here</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SETTINGS ───────────────────────────────────────────────────────── -->
+    <section id="view-settings" class="view">
+      <div class="settings-view">
+        <div class="settings-header">
+          <div class="settings-title">Settings</div>
+          <div class="settings-subtitle">Musico preferences & audio</div>
+        </div>
+
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-tab="general">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            General
+          </button>
+          <button class="settings-tab" data-tab="audio">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6h4l3-3h6l3 3h4v12H2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Audio
+          </button>
+          <button class="settings-tab" data-tab="themes">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            Themes
+          </button>
+        </div>
+
+        <div class="settings-content">
+
+          <!-- GENERAL TAB -->
+          <div class="settings-panel active" id="panel-general">
+            <!-- Music Folder -->
+            <div class="s-card">
+              <div class="s-card-header">Music Library</div>
+              <div class="s-row" id="row-music-folder" style="cursor:pointer;" title="Choose music folder">
+                <div class="s-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                </div>
+                <div class="s-info">
+                  <div class="s-label">Music Folder</div>
+                  <div class="s-hint">Click to choose your library folder</div>
+                </div>
+                <span class="s-folder-tag" id="folder-tag">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 4h12v9H2zM2 4l2-2h3l1 2"/></svg>
+                  ~/Music
+                </span>
+              </div>
+              <div class="s-row">
+                <div class="s-icon green">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                </div>
+                <div class="s-info">
+                  <div class="s-label">Re-index Library</div>
+                  <div class="s-hint" id="scan-hint">Scans your folder for audio files</div>
+                </div>
+                <button class="s-action-btn" id="btn-scan">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                  Scan
+                </button>
+              </div>
+            </div>
+
+            <!-- Keyboard Shortcuts -->
+            <div class="s-card">
+              <div class="s-card-header">Keyboard Shortcuts</div>
+              <div style="padding: var(--space-12) var(--space-20);">
+                <div class="shortcut-row"><span class="key-badge">Space</span><span class="shortcut-desc">Play / Pause</span></div>
+                <div class="shortcut-row"><span class="key-badge">← →</span><span class="shortcut-desc">Seek ±5 seconds</span></div>
+                <div class="shortcut-row"><span class="key-badge">↑ ↓</span><span class="shortcut-desc">Volume ±5%</span></div>
+                <div class="shortcut-row"><span class="key-badge">N</span><span class="shortcut-desc">Next track</span></div>
+                <div class="shortcut-row"><span class="key-badge">P</span><span class="shortcut-desc">Previous track</span></div>
+                <div class="shortcut-row"><span class="key-badge">S</span><span class="shortcut-desc">Cycle shuffle mode</span></div>
+                <div class="shortcut-row"><span class="key-badge">R</span><span class="shortcut-desc">Cycle repeat mode</span></div>
+              </div>
+            </div>
+
+            <!-- Smart Radio -->
+            <div class="s-card">
+              <div class="s-row" style="border-top:none;">
+                <div class="s-icon green">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><circle cx="12" cy="17" r=".5"/><circle cx="12" cy="12" r="10"/></svg>
+                </div>
+                <div class="s-info">
+                  <div class="s-label">Smart Radio</div>
+                  <div class="s-hint">Auto-pick songs that match what you're playing</div>
+                </div>
+                <div class="s-toggle on" id="toggle-smart-rec" role="switch" aria-checked="true" tabindex="0" aria-label="Smart Radio"></div>
+              </div>
+            </div>
+
+            <!-- About -->
+            <div class="s-card">
+              <div class="about-section">
+                <div>
+                  <div class="about-name">Musico</div>
+                  <div class="about-detail">Tauri · Symphonia · Pure Rust Backend</div>
+                </div>
+                <span class="version-badge">v0.3.0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- AUDIO TAB -->
+          <div class="settings-panel" id="panel-audio">
+            <!-- Equalizer -->
+            <div class="s-card">
+              <div class="s-row" style="border-top:none;">
+                <div class="s-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 6h4M10 6h12M2 12h10M16 12h6M2 18h6M12 18h10"/><circle cx="8" cy="6" r="2"/><circle cx="14" cy="12" r="2"/><circle cx="10" cy="18" r="2"/></svg>
+                </div>
+                <div class="s-info">
+                  <div class="s-label">Equalizer</div>
+                  <div class="s-hint">10-band audio equalizer</div>
+                </div>
+                <div class="s-toggle on" id="toggle-eq" role="switch" aria-checked="true" tabindex="0" aria-label="Equalizer"></div>
+              </div>
+              <div style="padding: var(--space-4) var(--space-16) var(--space-8); display:flex; gap:var(--space-6); flex-wrap:wrap;" id="eq-presets">
+                <button class="sort-pill active" data-eq-preset="Flat">Flat</button>
+                <button class="sort-pill" data-eq-preset="Bass Boost">Bass Boost</button>
+                <button class="sort-pill" data-eq-preset="Vocal">Vocal</button>
+                <button class="sort-pill" data-eq-preset="Treble">Treble</button>
+                <button class="sort-pill" data-eq-preset="Rock">Rock</button>
+                <button class="sort-pill" data-eq-preset="Classical">Classical</button>
+              </div>
+              <div class="eq-bands" id="eq-bands">
+                <!-- Populated by JS: 10 vertical sliders -->
+              </div>
+            </div>
+
+            <!-- Normalization -->
+            <div class="s-card">
+              <div class="s-card-header">Audio Normalization</div>
+              <div class="s-card-desc">Match perceived loudness across tracks</div>
+              <div style="padding: var(--space-4) var(--space-20) var(--space-16); display:flex; gap:var(--space-8);">
+                <button class="sort-pill active" data-normalization="Off">Off</button>
+                <button class="sort-pill" data-normalization="Track">Track</button>
+                <button class="sort-pill" data-normalization="Album">Album</button>
+              </div>
+            </div>
+
+            <!-- Crossfade -->
+            <div class="s-card">
+              <div class="s-row" style="border-top:none;">
+                <div class="s-icon red">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/></svg>
+                </div>
+                <div class="s-info">
+                  <div class="s-label">Crossfade</div>
+                  <div class="s-hint">Smooth blend between tracks</div>
+                </div>
+                <div class="s-toggle" id="toggle-crossfade" role="switch" aria-checked="false" tabindex="0" aria-label="Crossfade"></div>
+              </div>
+              <div class="s-slider-row">
+                <div class="s-slider-label">
+                  <span class="s-hint">Duration</span>
+                  <span class="s-value">3.0s</span>
+                </div>
+                <input type="range" class="s-slider" min="0.5" max="10" step="0.5" value="3" aria-label="Crossfade duration in seconds"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- THEMES TAB -->
+          <div class="settings-panel" id="panel-themes">
+            <!-- Theme -->
+            <div class="s-card">
+              <div class="s-card-header">Theme</div>
+              <div style="padding: var(--space-4) var(--space-20) var(--space-16); display:flex; gap:var(--space-8);">
+                <button class="sort-pill active" data-theme-pill="light">☀️ Light</button>
+                <button class="sort-pill" data-theme-pill="dark">🌙 Dark</button>
+              </div>
+            </div>
+
+            <!-- Color Palette -->
+            <div class="s-card">
+              <div class="s-card-header">Color Palette</div>
+              <div class="swatches-row" id="palette-swatches" role="radiogroup" aria-label="Color palette">
+                <div class="swatch selected" data-palette="nebula" role="radio" aria-checked="true" tabindex="0" aria-label="Nebula palette"><div class="swatch-color" style="background:linear-gradient(135deg,#7c6bc4,#a594e0);"></div></div>
+                <div class="swatch" data-palette="sakura" role="radio" aria-checked="false" tabindex="0" aria-label="Sakura palette"><div class="swatch-color" style="background:linear-gradient(135deg,#d4548a,#e88aab);"></div></div>
+                <div class="swatch" data-palette="aurora" role="radio" aria-checked="false" tabindex="0" aria-label="Aurora palette"><div class="swatch-color" style="background:linear-gradient(135deg,#2da67a,#5cc49e);"></div></div>
+                <div class="swatch" data-palette="ocean" role="radio" aria-checked="false" tabindex="0" aria-label="Ocean palette"><div class="swatch-color" style="background:linear-gradient(135deg,#2e96cc,#68b8e0);"></div></div>
+                <div class="swatch" data-palette="ember" role="radio" aria-checked="false" tabindex="0" aria-label="Ember palette"><div class="swatch-color" style="background:linear-gradient(135deg,#d48a3c,#e8a868);"></div></div>
+                <div class="swatch" data-palette="mono" role="radio" aria-checked="false" tabindex="0" aria-label="Mono palette"><div class="swatch-color" style="background:linear-gradient(135deg,#7a7a80,#a0a0a6);"></div></div>
+              </div>
+            </div>
+
+            <!-- Art Tint -->
+            <div class="s-card">
+              <div class="s-row" style="border-top:none;">
+                <div class="s-icon blue">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                </div>
+                <div class="s-info">
+                  <div class="s-label">Art Tint Background</div>
+                  <div class="s-hint">Tint surfaces with album art color</div>
+                </div>
+                <div class="s-toggle on" id="toggle-art-tint" role="switch" aria-checked="true" tabindex="0" aria-label="Art tint background"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+  </div><!-- /content-area -->
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       NOW-PLAYING DOCK — sidebar card ≥860px / overlay strip <860px
+       ══════════════════════════════════════════════════════════════════════════ -->
+  <div class="mini-player hidden" id="mini-player" style="--mini-progress: 0%;" title="Open Now Playing">
+    <div class="dock-top">
+      <div class="mini-vinyl mini-vinyl-spin paused" id="mini-vinyl">
+        <div class="mini-vinyl-art" id="mini-art">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:rgba(255,255,255,0.65); width:12px; height:12px;">
+            <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </div>
+        <div class="mini-vinyl-hole"></div>
+      </div>
+      <div class="mini-info">
+        <div class="mini-title" id="mini-title">Nothing Playing</div>
+        <div class="mini-artist" id="mini-artist">—</div>
+      </div>
+      <button class="mini-expand" id="mini-expand" title="Open Now Playing" aria-label="Open Now Playing">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+      </button>
+    </div>
+    <div class="dock-controls">
+      <input type="range" class="mini-volume" id="mini-volume" min="0" max="100" step="1" value="68" aria-label="Volume"/>
+      <button class="mini-btn" id="mini-prev" title="Previous" aria-label="Previous track">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12l8.5 6V6z"/></svg>
+      </button>
+      <button class="mini-btn play-btn" id="mini-play" title="Play/Pause" aria-label="Play or pause">
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="8,5 20,12 8,19"/></svg>
+      </button>
+      <button class="mini-btn" id="mini-next" title="Next" aria-label="Next track">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       BOTTOM NAVIGATION PILL (compact <860px only; sidebar takes over above)
+       ══════════════════════════════════════════════════════════════════════════ -->
+  <nav class="bottom-nav-pill" id="bottom-nav">
+    <button class="nav-item active" data-view="browse">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+      <span>Browse</span>
+    </button>
+    <button class="nav-item" data-view="now-playing">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3"/></svg>
+      <span>Now Playing</span>
+    </button>
+    <button class="nav-item" data-view="library">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+      <span>Library</span>
+    </button>
+    <button class="nav-item" data-view="queue">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      <span>Queue</span>
+    </button>
+    <button class="nav-item" data-view="playlists">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      <span>Playlists</span>
+    </button>
+    <button class="nav-item" data-view="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<script src="js/bridge.js?v=0.4.0"></script>
+<script src="js/app.js?v=0.4.0"></script>
+<script src="js/online.js?v=0.4.0"></script>
+<script src="js/vinyl.js?v=0.4.0"></script>
+<script src="js/knob.js?v=0.4.0"></script>
+<script src="js/seek.js?v=0.4.0"></script>
+
+</body>
+</html>

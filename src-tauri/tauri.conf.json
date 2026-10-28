@@ -1,0 +1,47 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicehash/tauri/v2/crates/tauri-cli/schema.json",
+  "productName": "Musico",
+  "version": "0.4.0",
+  "identifier": "dev.musico.app",
+  "build": {
+    "frontendDist": "../frontend",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "",
+    "beforeBuildCommand": ""
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Musico",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 460,
+        "minHeight": 640,
+        "resizable": true,
+        "decorations": true,
+        "transparent": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "publisher": "Musico",
+    "category": "Music",
+    "copyright": "Copyright (c) 2026 Aryan. MIT License.",
+    "homepage": "https://aryanch007h.github.io/Musico/",
+    "shortDescription": "Fast offline-first music player with smart radio, synced lyrics and EQ.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

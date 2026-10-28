@@ -1,0 +1,27 @@
+[package]
+name = "musico_recommender"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.78"
+description = "Offline music recommendation engine — pure Rust, zero network calls"
+license = "MIT"
+
+[lib]
+name = "musico_recommender"
+path = "src/lib.rs"
+
+[dependencies]
+symphonia = { version = "0.5", features = ["all"] }
+rustfft = "6"
+sled = "0.34"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bincode = "1"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1"
+rand = "0.8"
+log = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

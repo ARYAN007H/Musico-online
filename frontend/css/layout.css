@@ -1,0 +1,507 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   MUSICO — Layout Shell
+   App shell, bottom nav pill, mini player strip
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── App Shell ─────────────────────────────────────────────────────────────── */
+
+#app {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--surface);
+  position: relative;
+}
+
+/* Sidebar: brand, nav, now-playing dock */
+#sidebar {
+  width: 232px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--surface-base);
+  border-right: 1px solid var(--border-subtle);
+  padding: var(--space-20) var(--space-12) var(--space-16);
+}
+
+.side-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 var(--space-10) var(--space-16);
+}
+
+.brand-mark {
+  width: 26px;
+  height: 26px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.brand-name {
+  font-size: 14px;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.18em;
+  color: var(--text-primary);
+}
+
+.brand-sub {
+  font-family: var(--font-mono);
+  font-size: var(--text-nano);
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.side-nav .nav-item {
+  width: 100%;
+  justify-content: flex-start;
+  padding: var(--space-10) var(--space-12);
+  border-radius: 10px;
+  color: var(--text-secondary);
+}
+
+.side-nav .nav-item:hover {
+  background: var(--accent-tint);
+  color: var(--text-primary);
+}
+
+.side-nav .nav-item.active {
+  background: var(--accent-tint);
+  box-shadow: none;
+  color: var(--accent-text);
+}
+
+.side-nav .nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+#content-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#main-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Bottom scroll fade — content dissolves into the background instead of
+   sliding raw under the floating nav pill / mini player. */
+#main-content::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 96px;
+  background: linear-gradient(to bottom, transparent, var(--surface) 82%);
+  pointer-events: none;
+  z-index: 50; /* above scrolling content, below mini player (100) + nav (200) */
+}
+
+/* ─── Bottom Navigation Pill ────────────────────────────────────────────────── */
+
+.bottom-nav-pill {
+  position: fixed;
+  bottom: var(--space-16);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-nav);
+
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-lg), 0 8px 32px rgba(0,0,0,0.08);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-10) var(--space-16);
+  border-radius: var(--radius-pill);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out);
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+}
+
+.nav-item svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  transition: color var(--duration-normal) var(--ease-out);
+}
+
+.nav-item span {
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+.nav-item:hover {
+  color: var(--text-secondary);
+  background: var(--accent-tint);
+}
+
+.nav-item.active {
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset-sm);
+  color: var(--accent);
+  font-weight: var(--weight-semi);
+}
+
+.nav-item.active svg {
+  color: var(--accent);
+}
+
+/* Nav badge */
+.nav-item .nav-badge {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  border-radius: var(--radius-circle);
+  border: 2px solid var(--surface-raised);
+}
+
+/* ─── Now-Playing Dock / Mini Player ──────────────────────────────────────────
+   One element, two layouts: a card docked in the sidebar (≥860px), or a fixed
+   strip above the bottom pill (<860px). Progress hairline works in both. */
+
+.mini-player {
+  position: fixed;
+  left: var(--space-12);
+  bottom: var(--space-12);
+  width: 208px; /* matches the sidebar's inner width */
+  z-index: var(--z-mini-player);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-10);
+  padding: var(--space-12);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--neu-raised-sm);
+  transition: opacity var(--duration-normal) var(--ease-out),
+              transform var(--duration-normal) var(--ease-out);
+  overflow: hidden;
+  cursor: pointer; /* whole dock opens Now Playing */
+}
+
+/* Compact: fixed strip above the bottom pill */
+@media (max-width: 859px) {
+  .mini-player {
+    left: var(--space-8);
+    right: var(--space-8);
+    bottom: 74px;
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-12);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--neu-raised), 0 4px 20px rgba(0,0,0,0.06);
+  }
+
+  .dock-top { flex: 1; min-width: 0; }
+  .dock-top .mini-expand { display: none; }
+  .dock-controls .mini-volume { display: none; }
+}
+
+.mini-player.hidden {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
+.dock-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  min-width: 0;
+}
+
+.dock-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+/* Progress line at top of mini player */
+.mini-player::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: var(--mini-progress, 0%);
+  background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
+  border-radius: 2px 2px 0 0;
+  transition: width 0.25s linear;
+}
+
+/* Mini vinyl disc */
+.mini-vinyl {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-circle);
+  background: var(--vinyl-color);
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--neu-raised-sm);
+}
+
+.mini-vinyl-art {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-circle);
+  background: var(--surface-deep);
+  border: 2px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+
+.mini-vinyl-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mini-vinyl-hole {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-circle);
+  background: var(--surface);
+  z-index: 2;
+}
+
+/* Mini vinyl grooves */
+.mini-vinyl::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: var(--radius-circle);
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+/* Mini song info */
+.mini-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mini-title {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-artist {
+  font-size: var(--text-micro);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Mini controls */
+.mini-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-shrink: 0;
+}
+
+.mini-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-circle);
+  border: none;
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.mini-btn:hover {
+  color: var(--text-primary);
+  box-shadow: var(--neu-raised);
+}
+
+.mini-btn:active {
+  box-shadow: var(--neu-inset-sm);
+  background: var(--surface-inset);
+}
+
+.mini-btn.play-btn {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow: 2px 2px 6px var(--accent-shadow), -1px -1px 4px var(--shadow-light);
+}
+
+.mini-btn.play-btn:active {
+  box-shadow: inset 2px 2px 4px rgba(0,0,0,0.2);
+}
+
+.mini-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Mini volume slider — lives in the mini player strip */
+.mini-volume {
+  width: 84px;
+  height: 4px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Expand affordance — explicit chevron to open Now Playing */
+.mini-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-circle);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.mini-expand:hover {
+  color: var(--accent);
+}
+
+.mini-expand svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────────────── */
+
+/* Sidebar mode (≥860px): pill hidden, dock holds the desktop position */
+@media (min-width: 860px) {
+  .bottom-nav-pill { display: none; }
+
+  .dock-controls .mini-volume {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+}
+
+/* Compact mode (<860px): icon-only pill, strip mini player */
+@media (max-width: 859px) {
+  #sidebar { display: none; }
+
+  .bottom-nav-pill .nav-item span { display: none; }
+
+  .bottom-nav-pill .nav-item {
+    padding: var(--space-10) var(--space-12);
+  }
+
+  .bottom-nav-pill {
+    left: var(--space-12);
+    right: var(--space-12);
+    transform: none;
+    justify-content: space-around;
+  }
+
+  /* Keep the song title visible — a player that won't say what's playing
+     is useless. Only the artist line collapses. */
+  .mini-artist { display: none; }
+}
+
+/* ─── Wide Desktop Layout (>1100px) ─────────────────────────────────────────── */
+
+@media (min-width: 1100px) {
+  /* Pleasant content measure instead of full-width stretch */
+  .now-playing { max-width: 720px; margin: 0 auto; width: 100%; }
+  .library { max-width: 980px; margin: 0 auto; width: 100%; }
+  .settings-view { max-width: 880px; margin: 0 auto; width: 100%; }
+  .queue-view { max-width: 980px; margin: 0 auto; width: 100%; }
+
+  /* Queue becomes a permanent side panel while Now Playing is active */
+  #main-content { display: flex; }
+  #main-content .view.active { flex: 1; min-width: 0; }
+  #view-now-playing.active ~ #view-queue:not(.active) {
+    display: flex;
+    flex-direction: column;
+    width: 360px;
+    flex-shrink: 0;
+    opacity: 1;
+    border-left: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.06));
+    background: var(--surface-raised, var(--surface));
+  }
+
+  /* Docked panel gets a quiet label header, not the full page hero */
+  #view-queue:not(.active) .queue-header {
+    padding: var(--space-20) var(--space-20) var(--space-8);
+    gap: var(--space-8);
+  }
+  #view-queue:not(.active) .queue-title {
+    font-size: var(--text-micro);
+    font-weight: var(--weight-semi);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  #view-queue:not(.active) .queue-clear {
+    display: none; /* manage the queue on the Queue page */
+  }
+}

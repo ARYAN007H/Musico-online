@@ -1,0 +1,492 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   MUSICO — Settings View
+   Tabbed drawer, neumorphic cards, toggle switches, swatches, sliders
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.settings-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.settings-header {
+  padding: var(--space-24) var(--space-32) var(--space-16);
+  flex-shrink: 0;
+}
+
+.settings-title {
+  font-size: var(--text-hero);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.settings-subtitle {
+  font-size: var(--text-body);
+  color: var(--text-muted);
+  margin-top: var(--space-4);
+}
+
+/* ─── Tabs ──────────────────────────────────────────────────────────────────── */
+
+.settings-tabs {
+  display: flex;
+  gap: var(--space-6);
+  padding: 0 var(--space-32) var(--space-20);
+  flex-shrink: 0;
+}
+
+.settings-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-10) var(--space-20);
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+  font-family: var(--font-display);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.settings-tab:hover {
+  color: var(--text-primary);
+}
+
+.settings-tab.active {
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset-sm);
+  color: var(--accent-text);
+  font-weight: var(--weight-semi);
+}
+
+.settings-tab svg { width: 16px; height: 16px; }
+
+/* ─── Settings Content ──────────────────────────────────────────────────────── */
+
+.settings-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--space-32) 64px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+}
+
+/* Compact mode: the mini strip overlays content — reserve clearance */
+@media (max-width: 859px) {
+  body.has-mini .settings-content {
+    padding-bottom: 150px;
+  }
+}
+
+.settings-panel {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-20);
+}
+
+.settings-panel.active {
+  display: flex;
+  animation: fade-in-up var(--duration-slow) var(--ease-out) both;
+}
+
+/* ─── Settings Cards ────────────────────────────────────────────────────────── */
+
+.s-card {
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.s-card-header {
+  padding: var(--space-16) var(--space-20) var(--space-8);
+  font-size: var(--text-subtitle);
+  font-weight: var(--weight-semi);
+  color: var(--text-primary);
+}
+
+.s-card-desc {
+  padding: 0 var(--space-20) var(--space-12);
+  font-size: var(--text-caption);
+  color: var(--text-muted);
+}
+
+/* Settings row */
+.s-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-14, 14px) var(--space-20);
+  border-top: 1px solid var(--divider);
+  transition: background var(--duration-fast);
+}
+
+.s-row:first-child { border-top: none; }
+
+.s-row:hover {
+  background: var(--accent-tint);
+}
+
+/* Icon container */
+.s-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset-sm);
+  color: var(--accent);
+}
+
+.s-icon svg { width: 16px; height: 16px; }
+
+.s-icon.green { color: var(--success); }
+.s-icon.red { color: var(--error); }
+.s-icon.blue { color: #2e96cc; }
+
+/* Info */
+.s-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.s-label {
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+.s-hint {
+  font-size: var(--text-micro);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Value display */
+.s-value {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+/* Folder tag */
+.s-folder-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-4) var(--space-10);
+  border-radius: var(--radius-xs);
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.s-folder-tag svg { width: 12px; height: 12px; }
+
+/* ─── Toggle Switch (Neumorphic Rocker) ─────────────────────────────────────── */
+
+.s-toggle {
+  position: relative;
+  width: 50px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--duration-normal) var(--ease-out);
+}
+
+.s-toggle::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-circle);
+  background: var(--surface-raised);
+  box-shadow: 2px 2px 5px var(--shadow-dark), -1px -1px 3px var(--shadow-light);
+  transition: transform var(--duration-normal) var(--ease-spring),
+              background var(--duration-normal);
+}
+
+.s-toggle.on {
+  background: var(--accent-tint-strong);
+}
+
+.s-toggle.on::after {
+  transform: translateX(22px);
+  background: var(--accent);
+  box-shadow: 2px 2px 6px var(--accent-shadow), -1px -1px 3px var(--shadow-light);
+}
+
+/* ─── Color Swatches ────────────────────────────────────────────────────────── */
+
+.swatches-row {
+  display: flex;
+  gap: var(--space-12);
+  padding: var(--space-12) var(--space-20);
+  flex-wrap: wrap;
+}
+
+.swatch {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  position: relative;
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+  overflow: hidden;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.swatch:hover {
+  transform: scale(1.08);
+  box-shadow: var(--neu-raised);
+}
+
+.swatch-color {
+  position: absolute;
+  inset: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.swatch.selected {
+  box-shadow: var(--neu-raised), 0 0 0 2.5px var(--accent);
+}
+
+.swatch.selected::before {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  z-index: 2;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* ─── Settings Slider ───────────────────────────────────────────────────────── */
+
+.s-slider-row {
+  padding: var(--space-8) var(--space-20) var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.s-slider-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.s-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset-sm);
+}
+
+.s-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-circle);
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+  cursor: pointer;
+  border: 3px solid var(--accent);
+  transition: box-shadow var(--duration-fast);
+}
+
+.s-slider::-webkit-slider-thumb:hover {
+  box-shadow: var(--neu-raised), 0 0 8px var(--accent-glow);
+}
+
+.s-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-circle);
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+  cursor: pointer;
+  border: 3px solid var(--accent);
+}
+
+/* ─── Keyboard Shortcut Badges ──────────────────────────────────────────────── */
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-6) 0;
+}
+
+.key-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-xs);
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+.shortcut-desc {
+  font-size: var(--text-caption);
+  color: var(--text-muted);
+}
+
+/* ─── Action Button ─────────────────────────────────────────────────────────── */
+
+.s-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-10) var(--space-20);
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--surface-raised);
+  box-shadow: var(--neu-raised-sm);
+  font-family: var(--font-display);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.s-action-btn:hover {
+  box-shadow: var(--neu-raised);
+  transform: translateY(-1px);
+}
+
+.s-action-btn:active {
+  box-shadow: var(--neu-inset-sm);
+  background: var(--surface-inset);
+  transform: none;
+}
+
+.s-action-btn svg { width: 14px; height: 14px; }
+
+/* ─── About Section ─────────────────────────────────────────────────────────── */
+
+.about-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-16) var(--space-20);
+}
+
+.about-name {
+  font-size: var(--text-body);
+  font-weight: var(--weight-semi);
+  color: var(--text-primary);
+}
+
+.about-detail {
+  font-size: var(--text-micro);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.version-badge {
+  display: inline-flex;
+  padding: var(--space-4) var(--space-12);
+  border-radius: var(--radius-pill);
+  background: var(--surface-inset);
+  box-shadow: var(--neu-inset-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--text-secondary);
+}
+
+/* EQ bands (single definition — vertical native sliders + labels) */
+.eq-bands {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-8) var(--space-20) var(--space-16);
+}
+.eq-band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.eq-slider {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 18px;
+  height: 90px;
+  accent-color: var(--accent);
+  background: transparent;
+  cursor: pointer;
+}
+.eq-band-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--accent-text);
+  font-weight: var(--weight-medium);
+  min-height: 13px;
+}
+.eq-band-label {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+  .settings-header, .settings-tabs {
+    padding-left: var(--space-16);
+    padding-right: var(--space-16);
+  }
+
+  .settings-content {
+    padding: 0 var(--space-12) 64px;
+  }
+
+  body.has-mini .settings-content {
+    padding-bottom: 150px;
+  }
+
+  .settings-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .settings-tabs::-webkit-scrollbar { display: none; }
+
+  .swatches-row { padding: var(--space-8) var(--space-12); }
+}

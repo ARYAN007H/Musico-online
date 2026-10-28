@@ -1,0 +1,42 @@
+[package]
+name = "musico-tauri"
+version = "0.4.0"
+edition = "2021"
+rust-version = "1.78"
+description = "Tauri shell for Musico — neumorphic music player"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+musico_playback = { path = "../musico_playback" }
+musico_recommender = { path = "../musico_recommender" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+env_logger = "0.11"
+walkdir = "2"
+base64 = "0.22"
+image = "0.25"
+dirs = "5"
+symphonia = { version = "0.5", features = ["all"] }
+rfd = "0.14"
+rand = "0.8"
+tauri-plugin-single-instance = "2"
+tokio = { version = "1", features = ["sync", "time", "rt"] }
+# Online music: InnerTube (YT Music) search + thumbnail fetch.
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+
+# System media controls: SMTC (Windows) / MPNowPlayingInfoCenter (macOS).
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+souvlaki = { version = "0.8", default-features = false }
+
+# MPRIS is a D-Bus (freedesktop.org) interface — Linux only.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "4", default-features = false, features = ["tokio"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
