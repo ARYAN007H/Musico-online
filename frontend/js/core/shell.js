@@ -215,15 +215,16 @@ function fmtQueueTime(secs) {
   return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
 
-function QueueRow({ song, current, onPlay }) {
+function QueueRow({ song, current, removable, onPlay }) {
   const bg = song.thumb
     ? `url("${song.thumb}") center/cover no-repeat, ${song.artGrad || 'var(--surface-raised)'}`
     : (song.artGrad || 'var(--surface-raised)');
-  const vid = String(song.id || '').startsWith('yt:') ? String(song.id).slice(3) : null;
+  const id = String(song.id || '');
+  const vid = id.startsWith('yt:') ? id.slice(3) : null;
   return html`
     <div class="qp-row ${current ? 'qp-current' : ''}" role="button" tabindex="0"
          aria-label="Play ${song.title}" onClick=${onPlay}
-         data-ctx="qrow" data-qid=${song.id} data-vid=${vid}
+         data-ctx=${removable ? 'qrow' : null} data-qid=${song.id} data-vid=${vid}
          data-title=${song.title} data-artist=${song.artist || null}
          onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlay(); } }}>
       <div class="qp-art" style=${{ background: bg }} aria-hidden="true" />
@@ -266,7 +267,8 @@ function QueuePanel() {
 
         <div class="qp-section">Playing Next</div>
         ${upcoming.length ? upcoming.map((song, i) => html`
-          <${QueueRow} key=${song.id + i} song=${song} onPlay=${() => playSong(song)} />`)
+          <${QueueRow} key=${song.id + i} song=${song} removable=${true}
+                       onPlay=${() => playSong(song)} />`)
           : html`<div class="qp-empty">Queue is empty — play something.</div>`}
 
         <div class="qp-section">Recently Played</div>
@@ -649,12 +651,15 @@ function ctxItemsFor(el) {
   const Online = window.Online || {};
   const Router = window.MusicoRouter;
   if (ds.ctx === 'song' && ds.videoId) {
+    // Prefer the searched track (carries thumbnail/duration) over the
+    // dataset stub — playNext/startRadio write this back into trackMap.
+    const track = Online.trackMap?.get(ds.videoId) || trackFromDataset(ds);
     return [
-      { label: 'Play', action: () => Online.playTrack?.(trackFromDataset(ds), null) },
-      { label: 'Play Next', action: () => Online.playNext?.(trackFromDataset(ds)) },
-      { label: 'Play Last', action: () => Online.enqueueTrack?.(trackFromDataset(ds)) },
+      { label: 'Play', action: () => Online.playTrack?.(track, null) },
+      { label: 'Play Next', action: () => Online.playNext?.(track) },
+      { label: 'Play Last', action: () => Online.enqueueTrack?.(track) },
       { sep: true },
-      { label: 'Start Radio', action: () => Online.startRadio?.(trackFromDataset(ds)) },
+      { label: 'Start Radio', action: () => Online.startRadio?.(track) },
     ];
   }
   if (ds.ctx === 'nav' && ds.browseId) {
@@ -685,6 +690,8 @@ function ContextMenu() {
 
   useEffect(() => {
     const onCtx = (e) => {
+      // A right-click anywhere replaces/closes whatever menu is open.
+      if (Store.get('ctxMenu')) Store.set('ctxMenu', null);
       const el = e.target.closest?.('[data-ctx]');
       if (!el) return;
       const items = ctxItemsFor(el);

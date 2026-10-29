@@ -565,7 +565,10 @@ pub async fn online_play(
     let eng = engine(&state)?;
     {
         let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-        q.push_back(song);
+        // Front, not back: "play this now" must survive concurrent enqueues
+        // (queue-all drains through a 3-wide pool for seconds) and play the
+        // clicked track, not whatever landed in the queue meanwhile.
+        q.push_front(song);
         let next_song = q.next().ok_or("Failed to enqueue song")?;
         drop(q);
         crate::event_bridge::play_and_track(&eng, &state, next_song)

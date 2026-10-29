@@ -371,17 +371,21 @@ const Online = (() => {
   // ─── Context-menu actions (C3.1 play-from-anywhere) ─────────────────────────
   async function playNext(track) {
     if (!track) return;
-    trackMap.set(track.video_id, track);
-    App.showToast(`Playing \u201C${track.title}\u201D next\u2026`);
-    await Bridge.invoke('online_play_next', { track });
+    const ok = await Bridge.invoke('online_play_next', { track });
+    if (ok !== null) {
+      trackMap.set(track.video_id, track);
+      App.showToast(`Playing \u201C${track.title}\u201D next\u2026`);
+    }
   }
 
   async function startRadio(track) {
     if (!track) return;
-    trackMap.set(track.video_id, track);
-    App.showToast(`Starting radio from \u201C${track.title}\u201D\u2026`);
-    await Bridge.invoke('online_start_radio', { track });
-    App.navigateTo('now-playing');
+    const ok = await Bridge.invoke('online_start_radio', { track });
+    if (ok !== null) {
+      trackMap.set(track.video_id, track);
+      App.showToast(`Starting radio from \u201C${track.title}\u201D\u2026`);
+      App.navigateTo('now-playing');
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);
