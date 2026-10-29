@@ -488,6 +488,18 @@ pub(crate) fn parse_browse_page(json: &serde_json::Value) -> BrowsePage {
     BrowsePage { title, shelves, next_continuation, header }
 }
 
+/// First browseEndpoint (browseId + params) found in a runs object.
+fn find_first_browse_link(runs_obj: &serde_json::Value) -> Option<(String, Option<String>)> {
+    let runs = runs_obj.get("runs").and_then(|v| v.as_array())?;
+    runs.iter().find_map(|r| {
+        let be = r.pointer("/navigationEndpoint/browseEndpoint")?;
+        Some((
+            be.get("browseId").and_then(|v| v.as_str())?.to_string(),
+            be.get("params").and_then(|v| v.as_str()).map(str::to_string),
+        ))
+    })
+}
+
 /// Parses the detail-page hero block (whichever header renderer the page
 /// uses): title, joined subtitle text, largest thumbnail, and the first
 /// navigation link embedded in the subtitle runs (artist / owner link).
@@ -515,10 +527,18 @@ fn parse_header(json: &serde_json::Value) -> Option<HeaderMeta> {
             continue;
         }
 
-        // First subtitle block: joined text + first navigation link.
+        // First subtitle block: joined text + first navigation link.  (On
+        // album pages the artist link often lives in straplineTextOne, not
+        // the subtitle — scan both, subtitle text wins for display.)
         let mut subtitles = Vec::new();
         collect_values(h, "subtitle", &mut subtitles);
-        let (subtitle, nav) = match subtitles.first() {
+        let mut straplines = Vec::new();
+        collect_values(h, "straplineTextOne", &mut straplines);
+        let nav = straplines
+            .first()
+            .and_then(|sub| find_first_browse_link(sub))
+            .or_else(|| subtitles.first().and_then(|sub| find_first_browse_link(sub)));
+        let (subtitle, _unused_nav) = match subtitles.first() {
             Some(sub) => {
                 let runs = sub.get("runs").and_then(|v| v.as_array());
                 let text = runs
@@ -529,20 +549,9 @@ fn parse_header(json: &serde_json::Value) -> Option<HeaderMeta> {
                             .join("")
                     })
                     .unwrap_or_default();
-                let link = runs.and_then(|rs| {
-                    rs.iter().find_map(|r| {
-                        let be = r.pointer("/navigationEndpoint/browseEndpoint")?;
-                        Some((
-                            be.get("browseId").and_then(|v| v.as_str())?.to_string(),
-                            be.get("params")
-                                .and_then(|v| v.as_str())
-                                .map(str::to_string),
-                        ))
-                    })
-                });
-                (text, link)
+                (text, ())
             }
-            None => (String::new(), None),
+            None => (String::new(), ()),
         };
 
         let thumbnail = h
@@ -558,7 +567,7 @@ fn parse_header(json: &serde_json::Value) -> Option<HeaderMeta> {
             subtitle,
             thumbnail,
             navigate_browse_id: nav.as_ref().map(|(id, _)| id.clone()),
-            navigate_params: nav.and_then(|(_, p)| p),
+            navigate_params: nav.as_ref().and_then(|(_, p)| p.clone()),
         });
     }
     None

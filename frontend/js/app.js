@@ -595,21 +595,31 @@ const App = (() => {
     // Catalog detail routes (#/browse/<payload>) render the Preact DetailView.
     if (window.MusicoRouter?.isDetail?.(viewName)) {
       const target = window.MusicoRouter.parseDetailRoute(viewName);
-      if (target) {
-        const prev = window.MusicoStore?.get('detail');
-        const changed = !prev || prev.browseId !== target.browseId
-          || (prev.params || '') !== (target.params || '');
-        window.MusicoStore?.set('detail', target);
-        if (changed) window.MusicoStore?.set('detailPage', null);
-      }
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById('view-detail')?.classList.add('active');
       document.querySelectorAll('#bottom-nav .nav-item').forEach(n => n.classList.remove('active'));
       state.currentView = 'detail';
-      // Publish so the topbar arrows re-render for the pushed history entry.
-      window.MusicoStore?.set('view', 'detail');
+      if (!target) {
+        // Malformed payload: don't leave a stale page under a broken route.
+        window.MusicoStore?.set('detail', null);
+        window.MusicoStore?.set('detailPage', null);
+        window.MusicoStore?.set('detailError', 'This link could not be opened.');
+        window.App?.showToast?.('This link could not be opened');
+        return;
+      }
+      const prev = window.MusicoStore?.get('detail');
+      const changed = !prev || prev.browseId !== target.browseId
+        || (prev.params || '') !== (target.params || '');
+      window.MusicoStore?.set('detail', target);
+      if (changed) window.MusicoStore?.set('detailPage', null);
+      // 'view' is the raw route (unique per page) so identical-value no-ops
+      // can't leave the topbar arrows stale on detail→detail navigation;
+      // 'activeNav' keeps the sidebar's Home item lit, like Apple Music.
+      window.MusicoStore?.set('view', viewName);
+      window.MusicoStore?.set('activeNav', 'browse');
       return;
     }
+    window.MusicoStore?.set('activeNav', viewName);
 
     state.currentView = viewName;
     window.MusicoStore?.set('view', viewName);

@@ -65,7 +65,7 @@ function NavItem({ item, active }) {
 }
 
 function Sidebar() {
-  const view = useStoreValue('view', Router.current());
+  const view = useStoreValue('activeNav', Router.current());
   return html`
     <div class="side-brand">
       <svg class="brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -391,21 +391,19 @@ function HomeFeed() {
 
 // ─── Detail pages (album / playlist / artist) ─────────────────────────────────
 
-function fmtDetailTime(secs) {
-  const s = Math.max(0, Math.floor(secs || 0));
-  const m = Math.floor(s / 60);
-  return `${m}:${String(s % 60).padStart(2, '0')}`;
-}
-
 const DETAIL_TTL = 5 * 60 * 1000;
+const DETAIL_CACHE_CAP = 12;
+let detailSeq = 0; // stale-response guard: only the newest load may write
 
 async function loadDetail(target, force = false) {
+  const my = ++detailSeq;
   const key = `${target.browseId}|${target.params || ''}`;
   const cache = Store.get('detailCache') || {};
   const hit = cache[key];
   if (hit && !force && Date.now() - hit.at < DETAIL_TTL) {
     Store.set('detailPage', hit.page);
     Store.set('detailError', null);
+    Store.set('detailLoading', false);
     return;
   }
   Store.set('detailLoading', true);
@@ -415,15 +413,22 @@ async function loadDetail(target, force = false) {
     const page = await Bridge0().invoke('online_browse', {
       browseId: target.browseId, params: target.params || null,
     });
+    if (my !== detailSeq) return; // a newer navigation superseded this load
     if (!page) throw new Error('The page is unreachable right now.');
     Store.set('detailPage', page);
     Store.set('detailError', null);
-    Store.set('detailCache', { ...cache, [key]: { at: Date.now(), page } });
+    // Cap the cache: drop expired entries first, then the oldest.
+    const pruned = Object.entries({ ...cache, [key]: { at: Date.now(), page } })
+      .filter(([, v]) => Date.now() - v.at < DETAIL_TTL)
+      .sort((a, b) => a[1].at - b[1].at)
+      .slice(-DETAIL_CACHE_CAP);
+    Store.set('detailCache', Object.fromEntries(pruned));
   } catch (e) {
+    if (my !== detailSeq) return;
     Store.set('detailPage', null);
     Store.set('detailError', String(e).replace('Error: ', ''));
   }
-  Store.set('detailLoading', false);
+  if (my === detailSeq) Store.set('detailLoading', false);
 }
 
 function DetailTrackRow({ item, index }) {
@@ -474,13 +479,17 @@ function DetailView() {
 
   if (!target) return null;
 
-  // Flattened playable rows (tracklists) + remaining shelves (discography etc.)
+  // The FIRST fully-playable shelf is the page's tracklist; later ones
+  // (artist "Songs" vs "Videos", discographies) render as carousels —
+  // Apple Music keeps them visually separate.
   const tracks = [];
   const shelves = [];
+  let tracksTaken = false;
   for (const shelf of page?.shelves || []) {
     const playableRows = shelf.items.filter((it) => it.video_id);
-    if (playableRows.length === shelf.items.length && shelf.items.length > 0 && !shelf.title.toLowerCase().includes('featur')) {
+    if (!tracksTaken && shelf.items.length > 0 && playableRows.length === shelf.items.length) {
       tracks.push(...shelf.items);
+      tracksTaken = true;
     } else {
       shelves.push(shelf);
     }
@@ -497,15 +506,13 @@ function DetailView() {
     }, null);
   };
   const queueAll = () => {
-    let queued = 0;
     for (const t of tracks) {
       window.Online?.enqueueTrack?.({
         video_id: t.video_id, title: t.title, artist: t.subtitle,
         album: '', duration_secs: null, thumbnail: t.thumbnail, cached: false,
-      }, null);
-      queued += 1;
+      }, null, { silent: true });
     }
-    window.App?.showToast?.(`Queued ${queued} tracks — streams resolve in the background`);
+    window.App?.showToast?.(`Queued ${tracks.length} tracks — streams resolve in the background`);
   };
 
   return html`
