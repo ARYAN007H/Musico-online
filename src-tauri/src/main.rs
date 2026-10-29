@@ -176,6 +176,10 @@ fn main() {
             commands::online_download,
             commands::online_cache_usage,
             commands::set_online_cache_cap,
+            commands::library_add,
+            commands::library_remove,
+            commands::library_list,
+            commands::library_contains,
             commands::online_available,
             commands::online_clear_cache,
             // Stats & playlists

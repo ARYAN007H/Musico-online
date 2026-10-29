@@ -51,6 +51,7 @@ pub mod diversity;
 pub mod errors;
 pub mod extractor;
 pub mod history;
+pub mod library;
 pub mod likes;
 pub mod models;
 pub mod playlists;
@@ -319,6 +320,28 @@ impl MusicRecommender {
     }
 
     /// All liked song ids (for UI sync).
+    // ─── Catalog library (C4.1) — thin delegation to library.rs ─────────────
+
+    pub fn library_put(&self, entry: &library::CatalogEntry) -> Result<(), RecommenderError> {
+        library::put(&self.store, entry)
+    }
+
+    pub fn library_remove(&self, kind: &str, id: &str) -> Result<(), RecommenderError> {
+        library::remove(&self.store, kind, id)
+    }
+
+    pub fn library_list(&self, kind: &str) -> Result<Vec<library::CatalogEntry>, RecommenderError> {
+        library::list(&self.store, kind)
+    }
+
+    pub fn library_contains(
+        &self,
+        kind: &str,
+        ids: &[String],
+    ) -> Result<Vec<String>, RecommenderError> {
+        library::contains(&self.store, kind, ids)
+    }
+
     pub fn liked_ids(&self) -> Result<Vec<String>, RecommenderError> {
         Ok(self
             .cache

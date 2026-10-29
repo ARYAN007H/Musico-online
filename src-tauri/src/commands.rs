@@ -519,6 +519,46 @@ pub fn get_liked_ids(state: State<AppState>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+// ─── Catalog library (C4.1: saved albums / artists / tracks) ─────────────────
+
+pub use musico_recommender::library::CatalogEntry as LibraryEntry;
+
+#[tauri::command]
+pub fn library_add(state: State<AppState>, entry: LibraryEntry) -> Result<(), String> {
+    rec(&state)?.library_put(&entry).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn library_remove(state: State<AppState>, kind: String, id: String) -> Result<(), String> {
+    rec(&state)?.library_remove(&kind, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn library_list(state: State<AppState>, kind: String) -> Result<Vec<LibraryEntry>, String> {
+    rec(&state)?.library_list(&kind).map_err(|e| e.to_string())
+}
+
+/// Which of `ids` are saved — drives Add-to-Library button state in bulk.
+#[tauri::command]
+pub fn library_contains(
+    state: State<AppState>,
+    kind: String,
+    ids: Vec<String>,
+) -> Result<Vec<String>, String> {
+    rec(&state)?.library_contains(&kind, &ids).map_err(|e| e.to_string())
+}
+
+fn rec<'a>(
+    state: &'a State<'a, AppState>,
+) -> Result<std::sync::MutexGuard<'a, musico_recommender::MusicRecommender>, String> {
+    state
+        .recommender
+        .as_ref()
+        .ok_or("recommender unavailable".to_string())?
+        .lock()
+        .map_err(|e| format!("recommender lock: {e}"))
+}
+
 // ─── Online (InnerTube search + yt-dlp playback) ─────────────────────────────
 
 use crate::online::OnlineTrack;
