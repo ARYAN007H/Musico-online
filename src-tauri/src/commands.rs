@@ -585,47 +585,68 @@ use musico_recommender::batch::BatchJob;
 /// Kicks off a persistent batch download.  Returns the batch id immediately;
 /// progress arrives via `download-progress` events and `online_batches`.
 /// Airplane mode (C4.3): flips the fast-fail flag, persists it, and on
-/// lift resumes every batch with pending work (queued "download when
-/// online").
+/// lift resumes queued batches in ONE sequential worker (skipping any
+/// batch whose runner is still live).  Bool, not unit: the frontend gates
+/// on null-vs-value and Tauri serializes Ok(()) as null.
 #[tauri::command]
-pub fn set_offline(handle: AppHandle, state: State<'_, AppState>, enabled: bool) -> Result<(), String> {
-    state
-        .offline
-        .store(enabled, std::sync::atomic::Ordering::Relaxed);
+pub fn set_offline(handle: AppHandle, state: State<'_, AppState>, enabled: bool) -> Result<bool, String> {
+    // Save-first (the set_autoplay pattern): a failed save must leave the
+    // in-memory flag and disk agreeing.
     {
         let mut guard = state.settings.lock().unwrap_or_else(|e| e.into_inner());
         guard.offline_mode = enabled;
         guard.clone().save()?;
     }
+    state
+        .offline
+        .store(enabled, std::sync::atomic::Ordering::Relaxed);
     if !enabled {
-        // Lifting the switch resumes queued batches (same sequential worker
-        // contract as startup).
-        let resumed = state
-            .recommender
-            .as_ref()
-            .and_then(|r| r.lock().ok())
-            .and_then(|rec| match rec.batch_resume_pending() {
-                Ok(ids) => Some((ids, rec.store_handle(), state.batch_runners.clone())),
+        resume_queued_batches(&handle, &state);
+    }
+    Ok(true)
+}
+
+/// Runs every batch that still has pending work and no live runner, in ONE
+/// sequential worker thread — the shared contract between startup and the
+/// Airplane-Mode lift ("queued download when online").
+fn resume_queued_batches(handle: &AppHandle, state: &State<'_, AppState>) {
+    let resumed = state
+        .recommender
+        .as_ref()
+        .and_then(|r| r.lock().ok())
+        .and_then(|rec| {
+            match rec.batch_resume_pending() {
+                Ok(ids) => {
+                    let registry = &state.batch_runners;
+                    let mut runners = registry.lock().unwrap_or_else(|e| e.into_inner());
+                    // Skip batches whose runner is live RIGHT NOW (Airplane
+                    // on→off around an active download); the rest queue.
+                    let free: Vec<String> = ids
+                        .into_iter()
+                        .filter(|id| runners.insert(id.clone()))
+                        .collect();
+                    if free.is_empty() {
+                        None
+                    } else {
+                        Some((free, rec.store_handle(), registry.clone()))
+                    }
+                }
                 Err(e) => {
                     log::warn!("batch resume failed: {e}");
                     None
                 }
-            });
-        if let Some((ids, store, registry)) = resumed {
-            for id in ids {
-                let h = handle.clone();
-                let st = store.clone();
-                let rg = registry.clone();
-                let _ = std::thread::Builder::new()
-                    .name("online-batch".into())
-                    .spawn(move || {
-                        rg.lock().unwrap_or_else(|e| e.into_inner()).insert(id.clone());
-                        run_batch_worker(h, st, rg, id);
-                    });
             }
-        }
+        });
+    if let Some((ids, store, registry)) = resumed {
+        let h = handle.clone();
+        let _ = std::thread::Builder::new()
+            .name("online-batch-resume".into())
+            .spawn(move || {
+                for id in ids {
+                    run_batch_worker(h.clone(), store.clone(), registry.clone(), id);
+                }
+            });
     }
-    Ok(())
 }
 
 #[tauri::command]
@@ -741,7 +762,10 @@ pub fn online_batch_retry(
     id: String,
 ) -> Result<(), String> {
     rec(&state)?.batch_retry_failed(&id).map_err(|e| e.to_string())?;
-    spawn_batch_runner(&handle, &state, &id);
+    // Same contract as create: offline queues the work for the lift.
+    if !state.offline.load(std::sync::atomic::Ordering::Relaxed) {
+        spawn_batch_runner(&handle, &state, &id);
+    }
     Ok(())
 }
 

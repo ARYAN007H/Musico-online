@@ -64,9 +64,13 @@ fn main() {
                 .unwrap_or_else(|e| e.into_inner())
                 .online_cache_mb;
             crate::online::stream::set_cache_cap_override_mb(u64::from(saved_mb.unwrap_or(0)));
-            // Resume unfinished batch downloads (C4.2 persistence contract).
+            // Resume unfinished batch downloads (C4.2 persistence contract)
+            // — but NOT in Airplane Mode: the lift path picks them up.
             {
                 let state = app.state::<AppState>();
+                if state.offline.load(std::sync::atomic::Ordering::Relaxed) {
+                    log::info!("offline at boot: deferring batch resume to Airplane-Mode lift");
+                } else {
                 let resumed = state.recommender.as_ref().and_then(|r| r.lock().ok()).and_then(|rec| {
                     match rec.batch_resume_pending() {
                         Ok(ids) => {
@@ -93,6 +97,7 @@ fn main() {
                                 );
                             }
                         });
+                }
                 }
             }
             let engine = app.state::<AppState>().engine.clone();

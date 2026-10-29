@@ -315,6 +315,9 @@ fn preresolve_pick(next_id: Option<&str>, last: Option<&str>) -> Option<String> 
 /// re-resolves on demand, and resolve_stream is idempotent (per-video lock +
 /// cached-file check make duplicate workers harmless).
 fn preresolve_next_online(state: &tauri::State<AppState>) {
+    if state.offline.load(std::sync::atomic::Ordering::Relaxed) {
+        return; // futile yt-dlp attempts would pin the single-flight slot
+    }
     let next_id = state
         .queue
         .lock()

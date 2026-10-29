@@ -227,7 +227,7 @@ const App = (() => {
       toggle.classList.toggle('on', on);
       toggle.setAttribute('aria-checked', String(on));
       hint.textContent = on
-        ? 'Offline — downloads queue until you switch back'
+        ? 'Offline — in-flight downloads finish; new ones queue'
         : 'Online — YouTube Music reachable';
     };
 
@@ -247,8 +247,6 @@ const App = (() => {
     toggle.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); }
     });
-    // Reflect a persisted offline state after settings load.
-    if (window.App?.state?.settings?.offline_mode) paint(true);
   }
 
   // ─── Downloads & Storage (C3.3) ──────────────────────────────────────────────
