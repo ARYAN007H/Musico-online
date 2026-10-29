@@ -602,43 +602,66 @@ pub fn online_download_batch(
 
 /// Spawns the worker thread that runs a batch to completion (≤ 2 concurrent
 /// resolves).  Uses a cloned sled handle — the recommender mutex is NOT held
-/// for the duration.
+/// for the duration.  One runner per batch id: a second spawn for the same
+/// id (Retry mid-run, startup + manual) is a no-op — two run() loops racing
+/// record()'s load-mutate-insert would corrupt batch state.
 pub fn spawn_batch_runner(handle: &AppHandle, state: &State<AppState>, id: &str) {
+    {
+        let mut runners = state.batch_runners.lock().unwrap_or_else(|e| e.into_inner());
+        if !runners.insert(id.to_string()) {
+            return; // already running
+        }
+    }
     let store = match rec(state) {
         Ok(rec) => rec.store_handle(),
         Err(e) => {
+            state.batch_runners.lock().unwrap_or_else(|e| e.into_inner()).remove(id);
             log::warn!("batch {id}: store unavailable: {e}");
             return;
         }
     };
     let handle = handle.clone();
     let id = id.to_string();
-    let _ = std::thread::Builder::new()
+    let registry = state.batch_runners.clone();
+    let id_for_err = id.clone();
+    let spawned = std::thread::Builder::new()
         .name("online-batch".into())
-        .spawn(move || {
-            let resolve = |vid: &str| {
-                crate::online::resolve_stream(vid, std::time::Duration::from_secs(240))
-                    .map(|_| ())
-            };
-            let progress = |job: &BatchJob| {
-                let _ = handle.emit(
-                    "download-progress",
-                    serde_json::json!({
-                        "batchId": job.id,
-                        "label": job.label,
-                        "done": job.done_count(),
-                        "failed": job.failed_ids().len(),
-                        "total": job.tracks.len(),
-                        "state": if job.active { "running" } else { "settled" },
-                    }),
-                );
-            };
-            if let Err(e) =
-                musico_recommender::batch::run(&store, &id, &resolve, &progress)
-            {
-                log::warn!("batch {id} failed: {e}");
-            }
-        });
+        .spawn(move || run_batch_worker(handle, store, registry, id));
+    if spawned.is_err() {
+        state.batch_runners.lock().unwrap_or_else(|e| e.into_inner()).remove(&id_for_err);
+    }
+}
+
+/// The synchronous batch worker body — one batch to completion, then the
+/// registry slot is freed.  Shared by interactive spawns and the startup
+/// resume loop (which runs batches SEQUENTIALLY in one thread).
+pub fn run_batch_worker(
+    handle: AppHandle,
+    store: musico_recommender::models::Store,
+    registry: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+    id: String,
+) {
+    let resolve = |vid: &str| {
+        crate::online::resolve_stream(vid, std::time::Duration::from_secs(240)).map(|_| ())
+    };
+    let progress = |job: &BatchJob| {
+        let _ = handle.emit(
+            "download-progress",
+            serde_json::json!({
+                "batchId": job.id,
+                "label": job.label,
+                "done": job.done_count(),
+                "failed": job.failed_ids().len(),
+                "total": job.tracks.len(),
+                "state": if job.active { "running" } else { "settled" },
+            }),
+        );
+    };
+    if let Err(e) = musico_recommender::batch::run(&store, &id, &resolve, &progress) {
+        log::warn!("batch {id} failed: {e}");
+    }
+    // Runner exits (settled OR cancelled): free the slot for Retry.
+    registry.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
 }
 
 /// All batches, newest first — the queue UI reads this.

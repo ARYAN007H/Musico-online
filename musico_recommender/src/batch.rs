@@ -96,7 +96,8 @@ pub fn create(
                 state: "pending".into(),
             })
             .collect(),
-        active: true,
+        // An all-blank batch would never settle — don't create zombies.
+        active: !tracks.is_empty(),
     };
     save(&tree(store)?, &job)?;
     Ok(job)
@@ -141,7 +142,9 @@ pub fn record(
     Ok(Some(job))
 }
 
-/// Re-enqueues every failed track (retry-failed semantics).
+/// Re-enqueues every failed track AND re-activates a batch that still has
+/// pending work (cancel-then-resume).  A batch settled with nothing left
+/// pending stays untouched.
 pub fn retry_failed(
     store: &Store,
     id: &str,
@@ -154,6 +157,9 @@ pub fn retry_failed(
             t.state = "pending".into();
             changed = true;
         }
+    }
+    if !job.pending_ids().is_empty() {
+        changed = true;
     }
     if changed {
         job.active = true;
@@ -201,16 +207,20 @@ where
                 .map(|vid| scope.spawn(move || (vid.clone(), resolve(vid))))
                 .collect();
             for h in handles {
-                if let Ok(r) = h.join() {
-                    results.push(r);
+                match h.join() {
+                    Ok(r) => results.push(r),
+                    // A panicking resolver must settle its track, or the
+                    // loop re-spawns the same wave forever.
+                    Err(_) => results.push((String::new(), Err("resolver panicked".into()))),
                 }
             }
         });
-        let mut latest = job;
-        for (vid, r) in results {
+        // Join gives back the wave's ids in order; a panic loses the id, so
+        // fall back to positional pairing with the wave.
+        for (i, (vid, r)) in results.into_iter().enumerate() {
+            let vid = if vid.is_empty() { wave[i].clone() } else { vid };
             if let Some(updated) = record(store, id, &vid, r)? {
-                latest = updated;
-                progress(&latest);
+                progress(&updated);
             }
         }
     }

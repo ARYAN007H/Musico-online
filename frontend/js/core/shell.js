@@ -1092,17 +1092,27 @@ function LibraryCatalog() {
 
 function BatchQueue() {
   const batches = useStoreValue('batches', null);
-  const refresh = () => {
+  let refreshTimer = null;
+  const refreshNow = () => {
     window.Bridge?.invoke?.('online_batches').then((list) => {
       Store.set('batches', Array.isArray(list) ? list : []);
     });
   };
+  // Trailing debounce: a 50-track album fires 50 progress events.
+  const refresh = () => {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(refreshNow, 250);
+  };
 
   useEffect(() => {
-    refresh();
+    refreshNow();
     const onProgress = () => refresh();
-    window.Bridge?.listen?.('download-progress', onProgress);
-    return () => window.Bridge?.unlisten?.('download-progress', onProgress);
+    // listen() returns the unlisten fn (Tauri: a Promise of one).
+    const un = window.Bridge?.listen?.('download-progress', onProgress);
+    return () => {
+      clearTimeout(refreshTimer);
+      Promise.resolve(un).then((f) => f?.());
+    };
   }, []);
 
   if (!batches || !batches.length) return null;
@@ -1134,7 +1144,10 @@ function BatchQueue() {
                     onClick=${() => { window.Bridge?.invoke?.('online_batch_retry', { id: b.id }); refresh(); }}>Retry</button>` : null}
           ${running ? html`
             <button class="batch-btn" aria-label="Cancel download"
-                    onClick=${() => { window.Bridge?.invoke?.('online_batch_cancel', { id: b.id }); refresh(); }}>Cancel</button>` : null}
+                    onClick=${() => { window.Bridge?.invoke?.('online_batch_cancel', { id: b.id }); refresh(); }}>Cancel</button>`
+            : b.tracks.some((t) => t.state === 'pending') ? html`
+            <button class="batch-btn" aria-label="Resume download"
+                    onClick=${() => { window.Bridge?.invoke?.('online_batch_retry', { id: b.id }); refresh(); }}>Resume</button>` : null}
         </div>`;
       })}
     </div>`;

@@ -297,7 +297,6 @@ const Bridge = (() => {
 
   const api = { invoke, listen, isTauri, DEMO_SONGS, setErrorHandler: (fn) => { onError = fn; } };
   // Modules (Preact shell) resolve globals via window, not script scope.
-  api.unlisten = api.unlisten || (() => {});
-window.Bridge = api;
+  window.Bridge = api;
   return api;
 })();

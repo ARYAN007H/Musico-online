@@ -69,17 +69,30 @@ fn main() {
                 let state = app.state::<AppState>();
                 let resumed = state.recommender.as_ref().and_then(|r| r.lock().ok()).and_then(|rec| {
                     match rec.batch_resume_pending() {
-                        Ok(ids) => Some(ids),
+                        Ok(ids) => {
+                            // Cloned inside — the guard can't outlive the lock.
+                            Some((ids, rec.store_handle(), state.batch_runners.clone()))
+                        }
                         Err(e) => {
                             log::warn!("batch resume failed: {e}");
                             None
                         }
                     }
                 });
-                if let Some(ids) = resumed {
-                    for id in ids {
-                        commands::spawn_batch_runner(&handle, &state, &id);
-                    }
+                if let Some((ids, store, registry)) = resumed {
+                    // ONE worker, batches sequential: 5 unfinished batches
+                    // at boot must not mean 10 concurrent yt-dlps.
+                    let h = handle.clone();
+                    let _ = std::thread::Builder::new()
+                        .name("online-batch-resume".into())
+                        .spawn(move || {
+                            for id in ids {
+                                registry.lock().unwrap_or_else(|e| e.into_inner()).insert(id.clone());
+                                commands::run_batch_worker(
+                                    h.clone(), store.clone(), registry.clone(), id,
+                                );
+                            }
+                        });
                 }
             }
             let engine = app.state::<AppState>().engine.clone();

@@ -139,6 +139,14 @@ mod live_tests {
             .expect("batch run")
             .expect("job");
 
+        // Clean the cache FIRST — an assert must not skip cleanup and leave
+        // residue for the other live tests.
+        for vid in picked.iter().map(|(v, _)| v) {
+            if let Some(p) = cached_file(vid) {
+                let _ = std::fs::remove_file(p);
+            }
+        }
+
         println!(
             "batch: {}/{} done, {} failed, max concurrent {}",
             job.done_count(),
@@ -151,12 +159,6 @@ mod live_tests {
             "concurrency cap violated"
         );
         assert_eq!(job.done_count(), job.tracks.len(), "all tracks must download");
-        // Clean the cache so the run leaves no residue for other tests.
-        for vid in picked.iter().map(|(v, _)| v) {
-            if let Some(p) = cached_file(vid) {
-                let _ = std::fs::remove_file(p);
-            }
-        }
     }
 
     /// C3.2 gate: advancing into an already-cached online track must take
