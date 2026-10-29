@@ -7,7 +7,7 @@
    window.App (legacy controller) so there is exactly one source of truth.
    ══════════════════════════════════════════════════════════════════════════════ */
 
-import { html, render, useState, useEffect, useRef } from '../../vendor/htm-preact.js';
+import { html, render, useState, useEffect, useRef, useMemo } from '../../vendor/htm-preact.js';
 import Store from './store.js?v=0.6.1';
 import Router from './router.js?v=0.6.1';
 
@@ -837,12 +837,22 @@ function LibRow({ entry, onPlay, onOpen }) {
     </div>`;
 }
 
-function AZRail({ entries, rootSelector }) {
+function AZRail({ entries, rootSelector, jumpFallback }) {
   const letters = [...new Set(entries.map(libLetter))].sort();
   const jump = (l) => {
     const root = document.querySelector(rootSelector);
     const first = root && root.querySelector(`[data-letter="${l}"]`);
-    if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (first) {
+      first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (jumpFallback && jumpFallback(l)) {
+      // Windowed lists: the letter's rows render after the window grows —
+      // scroll once they exist.
+      setTimeout(() => {
+        document.querySelector(rootSelector)
+          ?.querySelector(`[data-letter="${l}"]`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 60);
+    }
   };
   return html`
     <div class="az-rail" aria-hidden="true">
@@ -864,6 +874,8 @@ const SONGS_WINDOW = 80;
 function MergedSongs({ search }) {
   const local = useStoreValue('localLibrary', []);
   const saved = useStoreValue('libTracks', []);
+  const loadErr = useStoreValue('libTracksError', null);
+  const loading = useStoreValue('libTracksLoading', false);
   const [shown, setShown] = useState(SONGS_WINDOW);
   const sentinelRef = useRef(null);
 
@@ -871,25 +883,30 @@ function MergedSongs({ search }) {
 
   // Merge local songs and saved online tracks, A–Z by title.  Rows keep a
   // reference to the original object — no copies, windowing bounds the DOM.
-  const merged = [];
-  for (const meta of local || []) {
-    merged.push({
-      key: `l${meta.id}`, title: meta.title || '', subtitle: meta.artist || '',
-      letter: libLetter({ title: meta.title || '?' }), meta,
-      onPlay: () => window.App?.playSong?.(meta),
-    });
-  }
-  for (const e of saved || []) {
-    merged.push({
-      key: `s${e.id}`, title: e.title || '', subtitle: e.subtitle || '',
-      letter: libLetter(e), entry: e,
-      onPlay: () => playCatalogTrackEntry(e),
-    });
-  }
+  // Memoized: the merge+sort runs only when the libraries change, not on
+  // every keystroke (the filter below is a cheap pass over a sorted array).
+  const merged = useMemo(() => {
+    const rows = [];
+    for (const meta of local || []) {
+      rows.push({
+        key: `l${meta.id}`, title: meta.title || '', subtitle: meta.artist || '',
+        letter: libLetter({ title: meta.title || '?' }), meta,
+        onPlay: () => window.App?.playSong?.(meta),
+      });
+    }
+    for (const e of saved || []) {
+      rows.push({
+        key: `s${e.id}`, title: e.title || '', subtitle: e.subtitle || '',
+        letter: libLetter(e), entry: e,
+        onPlay: () => playCatalogTrackEntry(e),
+      });
+    }
+    rows.sort((a, b) => a.title.localeCompare(b.title));
+    return rows;
+  }, [local, saved]);
   const filtered = search
     ? merged.filter((r) => `${r.title} ${r.subtitle}`.toLowerCase().includes(search))
     : merged;
-  filtered.sort((a, b) => a.title.localeCompare(b.title));
   const visible = filtered.slice(0, shown);
 
   // IntersectionObserver windowing: grow the window as the sentinel nears
@@ -922,10 +939,22 @@ function MergedSongs({ search }) {
               <div class="home-status">Loading more…</div>
             </div>`
           : filtered.length === 0
-            ? html`<div class="lib-empty">No songs${search ? ' match your search' : ''} yet.</div>`
+            ? (loadErr && !(local || []).length
+                ? html`<div class="home-status">Couldn't load saved tracks — ${loadErr}
+                    <button class="home-retry" onClick=${() => window.MusicoStore?.set('libRev', (window.MusicoStore?.get('libRev') || 0) + 1)}>Retry</button>
+                  </div>`
+                : loading && !(local || []).length
+                  ? html`<div class="home-status">Loading library…</div>`
+                  : html`<div class="lib-empty">No songs${search ? ' match your search' : ''}.</div>`)
             : null}
       </div>
-      <${AZRail} entries=${filtered} rootSelector=".lib-with-rail" />
+      <${AZRail} entries=${filtered} rootSelector=".lib-with-rail"
+                  jumpFallback=${(letter) => {
+                    const idx = filtered.findIndex((r) => r.letter === letter);
+                    if (idx < 0) return false;
+                    setShown(Math.max(shown, idx + SONGS_WINDOW + 20));
+                    return true;
+                  }} />
     </div>`;
 }
 

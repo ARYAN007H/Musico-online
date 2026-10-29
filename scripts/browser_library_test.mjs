@@ -135,7 +135,8 @@ await page.evaluate(() => {
   store.track = [];
   for (let i = 0; i < 10_000; i++) {
     store.track.push({
-      id: `perf${i}`, kind: 'track', title: `Perf Song ${String(i).padStart(5, '0')}`,
+      id: `perf${i}`, kind: 'track',
+      title: `${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[i % 26]}song ${String(i).padStart(5, '0')}`,
       subtitle: 'Perf Artist', thumbnail: null, browse_id: null, params: null,
       video_id: `perfvid${i}`, added_at: 1_700_000_000_000 + i,
     });
@@ -156,6 +157,37 @@ await page.evaluate(() => {
 await page.waitForTimeout(500);
 check('window grows after scrolling to sentinel', await page.evaluate(() =>
   document.querySelectorAll('.lib-rows .lib-row').length > 100));
+
+// 9. A–Z rail jump beyond the rendered window grows it (regression: the
+// jump used to querySelector and silently no-op past 80 rows).
+await page.evaluate(() => window.MusicoStore.set('libTab', 'songs'));
+await page.waitForTimeout(300);
+const rowsBefore = await page.evaluate(() =>
+  document.querySelectorAll('.lib-rows .lib-row').length);
+await page.evaluate(() => {
+  const w = [...document.querySelectorAll('.az-letter:not(.az-off)')]
+    .find((l) => l.textContent === 'Z');
+  w?.click();
+});
+await page.waitForTimeout(400);
+check('rail jump beyond window grows + targets', await page.evaluate((before) => {
+  const rows = document.querySelectorAll('.lib-rows .lib-row').length;
+  const target = document.querySelector('.lib-row[data-letter="Z"], .lib-letter-header[data-letter="Z"]');
+  return rows > before + 100 && !!target;
+}, rowsBefore));
+
+// 10. Escape clears the filter through the store (regression: the legacy
+// handler cleared the input without an input event, leaving libSearch set).
+await page.fill('#search-input', 'perf');
+await page.waitForTimeout(300);
+check('search filters the merged list', await page.evaluate(() =>
+  document.querySelectorAll('.lib-rows .lib-row').length < 100));
+await page.fill('#search-input', '');
+await page.press('#search-input', 'Escape');
+await page.waitForTimeout(300);
+check('Escape resets libSearch', await page.evaluate(() =>
+  (window.MusicoStore.get('libSearch') || '') === '' &&
+  document.querySelectorAll('.lib-rows .lib-row').length >= 8));
 
 console.log(results.join('\n'));
 console.log('JS errors:', errors.length ? errors : 'none');
