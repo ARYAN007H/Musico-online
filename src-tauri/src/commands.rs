@@ -557,6 +557,16 @@ pub fn library_contains(
     rec(&state)?.library_contains(&kind, &ids).map_err(|e| e.to_string())
 }
 
+/// Fast-fail guard for every network-reaching command.  Airplane mode
+/// (C4.3) makes online commands return in <10 ms with an honest message
+/// instead of hanging on a doomed request.
+fn ensure_online(state: &State<'_, AppState>) -> Result<(), String> {
+    if state.offline.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err("Offline — turn Airplane Mode off to reach YouTube Music".into());
+    }
+    Ok(())
+}
+
 fn rec<'a>(
     state: &'a State<'a, AppState>,
 ) -> Result<std::sync::MutexGuard<'a, musico_recommender::MusicRecommender>, String> {
@@ -574,6 +584,76 @@ use musico_recommender::batch::BatchJob;
 
 /// Kicks off a persistent batch download.  Returns the batch id immediately;
 /// progress arrives via `download-progress` events and `online_batches`.
+/// Airplane mode (C4.3): flips the fast-fail flag, persists it, and on
+/// lift resumes queued batches in ONE sequential worker (skipping any
+/// batch whose runner is still live).  Bool, not unit: the frontend gates
+/// on null-vs-value and Tauri serializes Ok(()) as null.
+#[tauri::command]
+pub fn set_offline(handle: AppHandle, state: State<'_, AppState>, enabled: bool) -> Result<bool, String> {
+    // Save-first (the set_autoplay pattern): a failed save must leave the
+    // in-memory flag and disk agreeing.
+    {
+        let mut guard = state.settings.lock().unwrap_or_else(|e| e.into_inner());
+        guard.offline_mode = enabled;
+        guard.clone().save()?;
+    }
+    state
+        .offline
+        .store(enabled, std::sync::atomic::Ordering::Relaxed);
+    if !enabled {
+        resume_queued_batches(&handle, &state);
+    }
+    Ok(true)
+}
+
+/// Runs every batch that still has pending work and no live runner, in ONE
+/// sequential worker thread — the shared contract between startup and the
+/// Airplane-Mode lift ("queued download when online").
+fn resume_queued_batches(handle: &AppHandle, state: &State<'_, AppState>) {
+    let resumed = state
+        .recommender
+        .as_ref()
+        .and_then(|r| r.lock().ok())
+        .and_then(|rec| {
+            match rec.batch_resume_pending() {
+                Ok(ids) => {
+                    let registry = &state.batch_runners;
+                    let mut runners = registry.lock().unwrap_or_else(|e| e.into_inner());
+                    // Skip batches whose runner is live RIGHT NOW (Airplane
+                    // on→off around an active download); the rest queue.
+                    let free: Vec<String> = ids
+                        .into_iter()
+                        .filter(|id| runners.insert(id.clone()))
+                        .collect();
+                    if free.is_empty() {
+                        None
+                    } else {
+                        Some((free, rec.store_handle(), registry.clone()))
+                    }
+                }
+                Err(e) => {
+                    log::warn!("batch resume failed: {e}");
+                    None
+                }
+            }
+        });
+    if let Some((ids, store, registry)) = resumed {
+        let h = handle.clone();
+        let _ = std::thread::Builder::new()
+            .name("online-batch-resume".into())
+            .spawn(move || {
+                for id in ids {
+                    run_batch_worker(h.clone(), store.clone(), registry.clone(), id);
+                }
+            });
+    }
+}
+
+#[tauri::command]
+pub fn get_offline(state: State<AppState>) -> bool {
+    state.offline.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 #[tauri::command]
 pub fn online_download_batch(
     handle: AppHandle,
@@ -596,7 +676,11 @@ pub fn online_download_batch(
             .unwrap_or(0)
     );
     rec(&state)?.batch_create(&id, &label, &pairs).map_err(|e| e.to_string())?;
-    spawn_batch_runner(&handle, &state, &id);
+    // Airplane mode: the batch persists with pending tracks and starts when
+    // the switch lifts (set_offline(false) runs the same resume path).
+    if !state.offline.load(std::sync::atomic::Ordering::Relaxed) {
+        spawn_batch_runner(&handle, &state, &id);
+    }
     Ok(id)
 }
 
@@ -678,7 +762,10 @@ pub fn online_batch_retry(
     id: String,
 ) -> Result<(), String> {
     rec(&state)?.batch_retry_failed(&id).map_err(|e| e.to_string())?;
-    spawn_batch_runner(&handle, &state, &id);
+    // Same contract as create: offline queues the work for the lift.
+    if !state.offline.load(std::sync::atomic::Ordering::Relaxed) {
+        spawn_batch_runner(&handle, &state, &id);
+    }
     Ok(())
 }
 
@@ -699,10 +786,12 @@ use crate::online::OnlineTrack;
 /// a worker for that long.
 #[tauri::command]
 pub async fn online_search(
+    state: State<'_, AppState>,
     query: String,
     videos: Option<bool>,
     continuation: Option<String>,
 ) -> Result<crate::online::SearchResultPage, String> {
+    ensure_online(&state)?;
     tauri::async_runtime::spawn_blocking(move || {
         crate::online::search(&query, videos.unwrap_or(false), continuation.as_deref())
     })
@@ -719,6 +808,7 @@ pub async fn online_play(
     state: State<'_, AppState>,
     track: OnlineTrack,
 ) -> Result<(), String> {
+    ensure_online(&state)?;
     let _ = handle.emit(
         "online-status",
         serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
@@ -787,6 +877,7 @@ pub async fn online_enqueue(
     state: State<'_, AppState>,
     track: OnlineTrack,
 ) -> Result<(), String> {
+    ensure_online(&state)?;
     let _ = handle.emit(
         "online-status",
         serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
@@ -812,6 +903,7 @@ pub async fn online_play_next(
     state: State<'_, AppState>,
     track: OnlineTrack,
 ) -> Result<(), String> {
+    ensure_online(&state)?;
     let _ = handle.emit(
         "online-status",
         serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
@@ -843,6 +935,7 @@ pub async fn online_start_radio(
     state: State<'_, AppState>,
     track: OnlineTrack,
 ) -> Result<(), String> {
+    ensure_online(&state)?;
     state
         .queue
         .lock()
@@ -860,7 +953,12 @@ pub async fn online_start_radio(
 /// online::download and mirrored to the frontend via `download-state`
 /// events.  Retrying a failure = invoking this again.
 #[tauri::command]
-pub async fn online_download(handle: AppHandle, track: OnlineTrack) -> Result<(), String> {
+pub async fn online_download(
+    handle: AppHandle,
+    state: State<'_, AppState>,
+    track: OnlineTrack,
+) -> Result<(), String> {
+    ensure_online(&state)?;
     crate::online::download::start(&track.video_id, &track.title);
     let _ = handle.emit(
         "download-state",
@@ -913,7 +1011,8 @@ pub fn set_online_cache_cap(
 
 /// The home (Listen Now) feed: editorial + personalized shelves.
 #[tauri::command]
-pub async fn online_home() -> Result<crate::online::BrowsePage, String> {
+pub async fn online_home(state: State<'_, AppState>) -> Result<crate::online::BrowsePage, String> {
+    ensure_online(&state)?;
     tauri::async_runtime::spawn_blocking(crate::online::home_feed)
         .await
         .map_err(|e| format!("home task failed: {e}"))?
@@ -921,7 +1020,10 @@ pub async fn online_home() -> Result<crate::online::BrowsePage, String> {
 
 /// The mood/genre category grid for the Browse tab.
 #[tauri::command]
-pub async fn online_genres() -> Result<Vec<crate::online::ShelfItem>, String> {
+pub async fn online_genres(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::online::ShelfItem>, String> {
+    ensure_online(&state)?;
     tauri::async_runtime::spawn_blocking(crate::online::genres)
         .await
         .map_err(|e| format!("genres task failed: {e}"))?
@@ -932,9 +1034,11 @@ pub async fn online_genres() -> Result<Vec<crate::online::ShelfItem>, String> {
 /// browseId+params captured from shelf items.
 #[tauri::command]
 pub async fn online_browse(
+    state: State<'_, AppState>,
     browse_id: String,
     params: Option<String>,
 ) -> Result<crate::online::BrowsePage, String> {
+    ensure_online(&state)?;
     tauri::async_runtime::spawn_blocking(move || {
         crate::online::browse(&browse_id, params.as_deref())
     })

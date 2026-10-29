@@ -51,6 +51,9 @@ pub struct AppSettings {
     /// default (1 GB).  The MUSICO_ONLINE_CACHE_MB env override still wins.
     #[serde(default)]
     pub online_cache_mb: Option<u32>,
+    /// Airplane mode (C4.3): online features fast-fail; downloads queue.
+    #[serde(default)]
+    pub offline_mode: bool,
 }
 
 fn default_volume() -> f32 { 0.68 }
@@ -81,6 +84,7 @@ impl Default for AppSettings {
             theme: default_theme(),
             autoplay: true,
             online_cache_mb: None,
+            offline_mode: false,
         }
     }
 }
