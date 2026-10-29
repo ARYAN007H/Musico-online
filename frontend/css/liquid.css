@@ -1,0 +1,285 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   LIQUID GLASS — Musico's design language (#39)
+   A clean-room web approximation of Apple's Liquid Glass (iOS 26 / macOS
+   Tahoe): translucent material that blurs and saturates what's behind it,
+   catches specular light on its edges, and floats above the content layer.
+
+   Recipe per surface:
+     backdrop-filter: blur(24px) saturate(180%)
+     fill:            translucent white/black (Regular) or nearly clear (Clear)
+     edge:            1px rgba-white border + inset specular + gradient rim
+     shadow:          soft, layered, large-radius
+   Glass is ONLY the floating layer (Apple HIG): sidebar, transport, panels,
+   buttons.  Content (cards, rows, lists) stays on the base surface.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Glass tokens ───────────────────────────────────────────────────────────── */
+:root {
+  --glass-blur: 24px;
+  --glass-sat: 180%;
+
+  /* Regular material (legible) */
+  --glass-fill:            rgba(255, 255, 255, 0.55);
+  --glass-fill-strong:     rgba(255, 255, 255, 0.72);
+  --glass-clear:           rgba(255, 255, 255, 0.28);
+  --glass-border:          rgba(255, 255, 255, 0.55);
+  --glass-highlight:       rgba(255, 255, 255, 0.85);
+  --glass-specular:        rgba(255, 255, 255, 0.35);
+  --glass-shadow:          0 8px 32px rgba(20, 16, 40, 0.16), 0 2px 8px rgba(20, 16, 40, 0.08);
+  --glass-shadow-lg:       0 16px 48px rgba(20, 16, 40, 0.22), 0 4px 12px rgba(20, 16, 40, 0.10);
+  --glass-sheen:           linear-gradient(115deg,
+                             rgba(255,255,255,0) 30%,
+                             rgba(255,255,255,0.35) 48%,
+                             rgba(255,255,255,0.08) 56%,
+                             rgba(255,255,255,0) 68%);
+}
+
+[data-theme="dark"] {
+  --glass-fill:            rgba(30, 30, 48, 0.42);
+  --glass-fill-strong:     rgba(30, 30, 48, 0.52);
+  --glass-clear:           rgba(255, 255, 255, 0.07);
+  --glass-border:          rgba(255, 255, 255, 0.14);
+  --glass-highlight:       rgba(255, 255, 255, 0.22);
+  --glass-specular:        rgba(255, 255, 255, 0.10);
+  --glass-shadow:          0 8px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.30);
+  --glass-shadow-lg:       0 16px 48px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* ─── The backdrop everything refracts ─────────────────────────────────────────
+   A fixed, slowly-drifting color mesh behind the app — the "wallpaper" the
+   glass lenses.  Pure CSS (no assets), GPU-composited transforms only. */
+#app::before {
+  content: '';
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  background:
+    radial-gradient(38% 42% at 18% 22%, #b8a6f5 0%, transparent 100%),
+    radial-gradient(30% 36% at 82% 12%, #f5b8d3 0%, transparent 100%),
+    radial-gradient(36% 40% at 78% 78%, #a6d3f5 0%, transparent 100%),
+    radial-gradient(30% 34% at 22% 82%, #f5d8a6 0%, transparent 100%),
+    linear-gradient(160deg, #ece7f6, #f6eef0 55%, #e7eef6);
+  filter: saturate(120%);
+  animation: glass-drift 46s ease-in-out infinite alternate;
+}
+[data-theme="dark"] #app::before {
+  background:
+    radial-gradient(38% 42% at 18% 22%, #352a68 0%, transparent 100%),
+    radial-gradient(30% 36% at 82% 12%, #63284a 0%, transparent 100%),
+    radial-gradient(36% 40% at 78% 78%, #1e3f68 0%, transparent 100%),
+    radial-gradient(30% 34% at 22% 82%, #68501f 0%, transparent 100%),
+    linear-gradient(160deg, #0a0912, #100d18 55%, #090e19);
+}
+/* Legibility scrim: the content pane is a translucent Regular wash over the
+   mesh — dark in dark mode, bright in light — text always ≥ 4.5:1. */
+#content-area {
+  background: rgba(16, 15, 27, 0.60);
+}
+[data-theme="light"] #content-area,
+html:not([data-theme]) #content-area {
+  background: rgba(255, 255, 255, 0.52);
+}
+@keyframes glass-drift {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(2.5%, -2%) scale(1.06); }
+  100% { transform: translate(-2%, 2.5%) scale(1.02); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #app::before { animation: none; }
+}
+
+/* ─── The glass surface primitive ────────────────────────────────────────────── */
+.glass {
+  position: relative;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 1px var(--glass-specular);
+}
+/* Specular rim: light catches the top-left edge of every pane. */
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(255, 255, 255, 0.10) 34%,
+    rgba(255, 255, 255, 0.02) 60%,
+    rgba(255, 255, 255, 0.32) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ─── Skin: window chrome ────────────────────────────────────────────────────── */
+
+/* The window base goes clear so the backdrop shows through everywhere. */
+body { background: transparent !important; }
+#app { background: transparent !important; }
+#view-browse, #view-genres, #view-detail, #view-library,
+#view-playlists, #view-settings, #view-queue {
+  background: transparent;
+}
+
+/* Sidebar: floating glass panel, inset from the window edge. */
+#sidebar {
+  margin: 10px 0 10px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 26px;
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 var(--glass-highlight);
+}
+#sidebar { border-right: 1px solid var(--glass-border); }
+
+/* Topbar: floating glass transport pill, detached from the window top. */
+#topbar-root {
+  position: relative;
+  z-index: 100;
+}
+.topbar-root {
+  margin: 10px 12px 6px 22px;
+  border: 1px solid var(--glass-border);
+  border-radius: 22px;
+  background: var(--glass-fill-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  box-shadow:
+    var(--glass-shadow-lg),
+    inset 0 1px 0 var(--glass-highlight);
+}
+.topbar-root::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--glass-sheen);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ─── Skin: controls ─────────────────────────────────────────────────────────── */
+
+/* Circular glass transport buttons. */
+.lcd-btn {
+  background: var(--glass-clear);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 2px 6px rgba(20, 16, 40, 0.10);
+  transition: transform var(--duration-fast) var(--ease-spring),
+              background var(--duration-fast) var(--ease-out);
+}
+.lcd-btn:hover { background: var(--glass-fill-strong); }
+.lcd-btn:active { transform: scale(0.92); }
+.lcd-btn.primary {
+  background: linear-gradient(180deg, var(--accent-secondary), var(--accent));
+  border: 1px solid var(--glass-border);
+  color: var(--on-accent, #fff);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 4px 14px var(--accent-shadow, rgba(124, 107, 196, 0.4));
+}
+
+/* Generic buttons and inputs pick up the material. */
+button[class*="btn"]:not(.lcd-btn):not(.shelf-play),
+.s-action-btn, .home-retry, .batch-btn, .lib-tab, .sort-pill {
+  background: var(--glass-clear);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  transition: transform var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+button[class*="btn"]:hover:not(.lcd-btn):not(.shelf-play),
+.s-action-btn:hover, .home-retry:hover, .batch-btn:hover,
+.lib-tab:hover, .sort-pill:hover {
+  background: var(--glass-fill-strong);
+}
+.s-action-btn:active, .home-retry:active, .batch-btn:active { transform: scale(0.96); }
+
+/* Search fields: glass wells. */
+.browse-search-sidebar, .search-bar, .browse-search {
+  background: var(--glass-clear);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 2px 8px rgba(20, 16, 40, 0.08);
+}
+.browse-search-sidebar:focus-within, .search-bar:focus-within,
+.browse-search:focus-within {
+  background: var(--glass-fill-strong);
+  border-color: var(--accent-secondary);
+}
+
+/* Panels: queue panel and cards dock into glass. */
+.queue-panel {
+  background: var(--glass-fill-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  border-left: 1px solid var(--glass-border);
+}
+
+/* Sidebar selection: liquid accent capsule. */
+.side-nav .nav-item.active {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent) 88%, white),
+    var(--accent));
+  color: var(--on-accent, #fff);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 2px 10px var(--accent-shadow, rgba(124, 107, 196, 0.35));
+}
+
+/* ─── Cards: translucent tiles on the scrim (content stays off the glass) ───── */
+.shelf-card, .lib-card, .genre-card, .qp-row, .dt-row {
+  box-shadow: none;
+}
+.shelf-card, .lib-card { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: var(--radius-lg); }
+.shelf-card .shelf-art, .lib-card-art { background-color: rgba(255, 255, 255, 0.06); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28); }
+.shelf-card:hover, .lib-card:hover { background: rgba(255, 255, 255, 0.35); }
+[data-theme="dark"] .shelf-card:hover,
+[data-theme="dark"] .lib-card:hover { background: rgba(255, 255, 255, 0.08); }
+.shelf-art, .lib-card-art, .dt-art, .qp-art {
+  box-shadow: 0 4px 16px rgba(20, 16, 40, 0.18);
+}
+
+/* ─── Fallbacks ───────────────────────────────────────────────────────────────── */
+
+/* No backdrop-filter support (old WebKitGTK): opaque fills keep text legible. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #sidebar, .topbar-root, .queue-panel {
+    background: var(--surface-raised);
+  }
+  .glass { background: var(--surface-raised); }
+}
+
+/* Apple's own accessibility fallback: reduced transparency → solid surfaces. */
+@media (prefers-reduced-transparency: reduce) {
+  #sidebar, .topbar-root, .queue-panel,
+  .glass, .lcd-btn, .browse-search-sidebar, .search-bar, .browse-search {
+    background: var(--surface-raised) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+  #app::before { filter: none; }
+}
+
+/* Scroll fade over the transparent pane: wash to the scrim, not an opaque fill. */
+#main-content::after {
+  background: linear-gradient(to bottom, transparent, rgba(14, 13, 24, 0.55) 82%);
+}
+html:not([data-theme="dark"]) #main-content::after {
+  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.5) 82%);
+}
