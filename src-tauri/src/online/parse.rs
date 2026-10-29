@@ -1209,7 +1209,7 @@ mod browse_tests {
 
     #[test]
     fn parses_genre_category_buttons() {
-        let json: serde_json::Value = serde_json::from_str(r#{
+        let json: serde_json::Value = serde_json::from_str(r#"{
  "contents": {
   "singleColumnBrowseResultsRenderer": {
    "tabs": [
