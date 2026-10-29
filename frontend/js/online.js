@@ -43,6 +43,14 @@ const Online = (() => {
       const page = await Bridge.invoke('online_search', { query, videos, continuation });
       if (seq !== searchSeq) return; // a newer search superseded this one
 
+      // null is the IPC-failure convention (Bridge swallows rejections) —
+      // Airplane Mode and network errors both land here.
+      if (page === null) {
+        if (append) setLoadMoreState(false);
+        else { setStatus('Search failed — check your connection (Airplane Mode?).'); renderResults([]); }
+        return;
+      }
+
       const tracks = page?.tracks || [];
       nextContinuation = page?.next_continuation || null;
 

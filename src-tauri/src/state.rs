@@ -29,6 +29,9 @@ pub struct AppState {
     /// run() loops racing record() would corrupt batch state).  Arc so the
     /// worker thread can clear its own slot on exit.
     pub batch_runners: Arc<Mutex<std::collections::HashSet<String>>>,
+    /// Airplane mode (C4.3): online commands fast-fail, batch downloads
+    /// queue until it lifts.  Mirrored into settings for persistence.
+    pub offline: Arc<AtomicBool>,
     /// Shared MPRIS metadata, filled by the event bridge once D-Bus is up.
     /// Unit type off Linux — MPRIS is a D-Bus interface and doesn't exist there.
     #[cfg(target_os = "linux")]
@@ -40,6 +43,7 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         let settings = AppSettings::load();
+        let offline_mode = settings.offline_mode;
         let music_dir = settings
             .music_folder
             .as_ref()
@@ -63,6 +67,7 @@ impl AppState {
             recommender,
             scanning: Arc::new(AtomicBool::new(false)),
             batch_runners: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            offline: Arc::new(AtomicBool::new(offline_mode)),
             mpris_state: Mutex::new(None),
         }
     }

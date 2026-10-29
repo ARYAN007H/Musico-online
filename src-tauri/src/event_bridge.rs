@@ -158,7 +158,12 @@ fn advance_from(handle: &AppHandle, ended: Option<&PlaybackEvent>, allow_online_
     //    fetch + download run on a worker thread (seconds of blocking work
     //    must not stall the 50 ms event loop); failure falls back to the
     //    local branches below.
-    if allow_online_radio && repeat != 1 {
+    if allow_online_radio
+        && repeat != 1
+        && !state
+            .offline
+            .load(std::sync::atomic::Ordering::Relaxed)
+    {
         if let Some(current) = eng.state().current_song {
             if current.id.starts_with("yt:") {
                 let seed = current.id.trim_start_matches("yt:").to_string();

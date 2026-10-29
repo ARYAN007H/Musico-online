@@ -90,6 +90,7 @@ const App = (() => {
     setupPaletteSwatches();
     setupSettingsPersistence();
     setupStorageUI();
+    setupOfflineToggle();
     setupEq();
     setupScanButton();
     setupLikedFilter();
@@ -214,6 +215,40 @@ const App = (() => {
   function persistSettings(patch) {
     Object.assign(state.settings, patch);
     Bridge.invoke('save_settings', { settings: state.settings });
+  }
+
+  // ─── Airplane Mode (C4.3) ────────────────────────────────────────────────────
+  function setupOfflineToggle() {
+    const toggle = document.getElementById('toggle-offline');
+    const hint = document.getElementById('offline-hint');
+    if (!toggle || !hint) return;
+
+    const paint = (on) => {
+      toggle.classList.toggle('on', on);
+      toggle.setAttribute('aria-checked', String(on));
+      hint.textContent = on
+        ? 'Offline — downloads queue until you switch back'
+        : 'Online — YouTube Music reachable';
+    };
+
+    Bridge.invoke('get_offline').then((on) => paint(!!on));
+
+    const flip = async () => {
+      const next = !toggle.classList.contains('on');
+      const ok = await Bridge.invoke('set_offline', { enabled: next });
+      if (ok !== null) {
+        paint(next);
+        if (window.App?.state?.settings) window.App.state.settings.offline_mode = next;
+        window.MusicoStore?.set('offline', next);
+        App.showToast(next ? 'Airplane Mode on — downloads will queue' : 'Back online');
+      }
+    };
+    toggle.addEventListener('click', flip);
+    toggle.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); }
+    });
+    // Reflect a persisted offline state after settings load.
+    if (window.App?.state?.settings?.offline_mode) paint(true);
   }
 
   // ─── Downloads & Storage (C3.3) ──────────────────────────────────────────────
@@ -1029,6 +1064,9 @@ const App = (() => {
 
   function setupToggles() {
     document.querySelectorAll('.s-toggle').forEach(toggle => {
+      // Airplane Mode (C4.3) manages its own state via set_offline — the
+      // generic class flip would double-toggle it.
+      if (toggle.id === 'toggle-offline') return;
       toggle.addEventListener('click', () => toggleSwitch(toggle));
       toggle.addEventListener('keydown', (e) => {
         if (e.key === ' ' || e.key === 'Enter') {

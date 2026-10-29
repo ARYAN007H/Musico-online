@@ -118,6 +118,7 @@ const Bridge = (() => {
       case 'get_liked_ids':
         return Promise.resolve([...mockLikes]);
       case 'online_search': {
+        if (window.__offline) return Promise.resolve(null);
         const q = (args?.query || '').toLowerCase();
         if (args?.continuation) return Promise.resolve({ tracks: [], next_continuation: null });
         const found = DEMO_SONGS.filter(s =>
@@ -161,6 +162,7 @@ const Bridge = (() => {
         return Promise.resolve(true);
       }
       case 'online_home':
+        if (window.__offline) return Promise.resolve(null);
         return Promise.resolve({
           title: 'Home',
           shelves: [
@@ -225,6 +227,11 @@ const Bridge = (() => {
         emit('download-state', { videoId: args?.track?.video_id || 'mock',
                                  title: args?.track?.title || 'Mock', stage: 'done' });
         return Promise.resolve(true);
+      case 'set_offline':
+        window.__offline = !!args?.enabled;
+        return Promise.resolve(true);
+      case 'get_offline':
+        return Promise.resolve(!!window.__offline);
       case 'online_download_batch':
         return Promise.resolve(`batch-${Date.now()}`);
       case 'online_batches':

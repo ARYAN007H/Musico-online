@@ -18,18 +18,18 @@
 <!-- Asset URLs carry ?v= — bump on frontend changes so the WebKit webview
      can't serve stale cached scripts/styles (bit us once: old bridge.js
      kept breaking IPC after an update). -->
-<link rel="stylesheet" href="css/tokens.css?v=0.6.10"/>
-<link rel="stylesheet" href="css/neumorphic.css?v=0.6.10"/>
-<link rel="stylesheet" href="css/animations.css?v=0.6.10"/>
-<link rel="stylesheet" href="css/layout.css?v=0.6.10"/>
-<link rel="stylesheet" href="css/now-playing.css?v=0.6.10"/>
-<link rel="stylesheet" href="css/library.css?v=0.6.10"/>
-<link rel="stylesheet" href="css/queue.css?v=0.6.10"/>
-<link rel="stylesheet" href="css/settings.css?v=0.6.10"/>
-<link rel="stylesheet" href="css/online.css?v=0.6.10"/>
-<link rel="stylesheet" href="css/topbar.css?v=0.6.10"/>
-<link rel="stylesheet" href="css/queue-panel.css?v=0.6.10"/>
-<link rel="stylesheet" href="css/am-clean.css?v=0.6.10"/>
+<link rel="stylesheet" href="css/tokens.css?v=0.6.11"/>
+<link rel="stylesheet" href="css/neumorphic.css?v=0.6.11"/>
+<link rel="stylesheet" href="css/animations.css?v=0.6.11"/>
+<link rel="stylesheet" href="css/layout.css?v=0.6.11"/>
+<link rel="stylesheet" href="css/now-playing.css?v=0.6.11"/>
+<link rel="stylesheet" href="css/library.css?v=0.6.11"/>
+<link rel="stylesheet" href="css/queue.css?v=0.6.11"/>
+<link rel="stylesheet" href="css/settings.css?v=0.6.11"/>
+<link rel="stylesheet" href="css/online.css?v=0.6.11"/>
+<link rel="stylesheet" href="css/topbar.css?v=0.6.11"/>
+<link rel="stylesheet" href="css/queue-panel.css?v=0.6.11"/>
+<link rel="stylesheet" href="css/am-clean.css?v=0.6.11"/>
 </head>
 <body>
 
@@ -389,6 +389,21 @@
               </div>
             </div>
 
+            <!-- Airplane Mode (C4.3) -->
+            <div class="s-card">
+              <div class="s-card-header">Network</div>
+              <div class="s-row">
+                <div class="s-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
+                </div>
+                <div class="s-info">
+                  <div class="s-label">Airplane Mode</div>
+                  <div class="s-hint" id="offline-hint">Online — YouTube Music reachable</div>
+                </div>
+                <div class="s-toggle" id="toggle-offline" role="switch" aria-checked="false" tabindex="0" aria-label="Airplane mode"></div>
+              </div>
+            </div>
+
             <!-- Downloads & Storage (C3.3) -->
             <div class="s-card">
               <div class="s-card-header">Downloads &amp; Storage</div>
@@ -652,15 +667,15 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      JAVASCRIPT
      ═══════════════════════════════════════════════════════════════════════════ -->
-<script src="js/bridge.js?v=0.6.10"></script>
-<script src="js/app.js?v=0.6.10"></script>
+<script src="js/bridge.js?v=0.6.11"></script>
+<script src="js/app.js?v=0.6.11"></script>
   <!-- shell.js imports store/router (versioned inside the module graph);
        standalone tags removed — they created duplicate module instances -->
-  <script type="module" src="js/core/shell.js?v=0.6.10"></script>
-<script src="js/online.js?v=0.6.10"></script>
-<script src="js/vinyl.js?v=0.6.10"></script>
-<script src="js/knob.js?v=0.6.10"></script>
-<script src="js/seek.js?v=0.6.10"></script>
+  <script type="module" src="js/core/shell.js?v=0.6.11"></script>
+<script src="js/online.js?v=0.6.11"></script>
+<script src="js/vinyl.js?v=0.6.11"></script>
+<script src="js/knob.js?v=0.6.11"></script>
+<script src="js/seek.js?v=0.6.11"></script>
 
 </body>
 </html>

@@ -209,6 +209,8 @@ fn main() {
             commands::online_batches,
             commands::online_batch_retry,
             commands::online_batch_cancel,
+            commands::set_offline,
+            commands::get_offline,
             commands::online_cache_usage,
             commands::set_online_cache_cap,
             commands::library_add,
