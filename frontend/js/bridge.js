@@ -191,6 +191,15 @@ const Bridge = (() => {
       case 'online_play_next':
       case 'online_start_radio':
         return Promise.resolve(true);
+      case 'online_download':
+        // Mirror the backend's state machine so row badges react in mocks.
+        emit('download-state', { videoId: args?.track?.video_id || 'mock',
+                                 title: args?.track?.title || 'Mock', stage: 'done' });
+        return Promise.resolve(true);
+      case 'online_cache_usage':
+        return Promise.resolve({ used_bytes: 314572800, cap_mb: 1024 });
+      case 'set_online_cache_cap':
+        return Promise.resolve({ used_bytes: 314572800, cap_mb: 1024 });
       case 'online_available':
         return Promise.resolve(true);
       case 'online_clear_cache':

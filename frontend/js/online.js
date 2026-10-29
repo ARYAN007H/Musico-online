@@ -251,6 +251,42 @@ const Online = (() => {
     });
   }
 
+  // ─── Explicit downloads (C3.3) ───────────────────────────────────────────────
+  // Downloads share the enqueue pool — N context-menu downloads must not
+  // spawn N concurrent yt-dlp processes (same rule as Queue-all).
+  async function downloadTrack(track) {
+    if (!track) return Promise.resolve();
+    markRow(track.video_id, 'dl-busy');
+    return new Promise((resolve) => {
+      enqueueQueue.push(async () => {
+        const ok = await Bridge.invoke('online_download', { track });
+        if (ok !== null) trackMap.set(track.video_id, track);
+        resolve(ok);
+      });
+      pumpEnqueue();
+    });
+  }
+
+  // Row badges for in-flight downloads (browse rows carry data-video-id).
+  function markRow(videoId, cls, on = true) {
+    if (!/^[A-Za-z0-9_-]{1,20}$/.test(videoId || '')) return;
+    document.querySelectorAll(`[data-video-id="${videoId}"]`).forEach((row) => {
+      row.classList.toggle(cls, on);
+      if (cls === 'dl-busy' && !on) row.classList.add('dl-done');
+    });
+  }
+
+  Bridge.listen('download-state', (e) => {
+    const p = e.payload ?? e;
+    if (p.stage === 'done') {
+      markRow(p.videoId, 'dl-busy', false);
+      App.showToast(`Downloaded \u201C${p.title}\u201D`);
+    } else if (p.stage === 'failed') {
+      markRow(p.videoId, 'dl-busy', false);
+      App.showToast(`Download failed: ${p.message || p.title || 'unknown error'}`);
+    }
+  });
+
   // ─── online-status events (resolving / playing / error) ─────────────────────
   Bridge.listen('online-status', (e) => {
     const p = e.payload ?? e;
@@ -390,6 +426,6 @@ const Online = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { search, playTrack, enqueueTrack, playNext, startRadio, toggleFullscreen, trackMap };
+  return { search, playTrack, enqueueTrack, playNext, startRadio, downloadTrack, toggleFullscreen, trackMap };
 })();
 window.Online = Online;

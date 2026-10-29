@@ -89,6 +89,7 @@ const App = (() => {
     setupToggles();
     setupPaletteSwatches();
     setupSettingsPersistence();
+    setupStorageUI();
     setupEq();
     setupScanButton();
     setupLikedFilter();
@@ -212,6 +213,46 @@ const App = (() => {
   function persistSettings(patch) {
     Object.assign(state.settings, patch);
     Bridge.invoke('save_settings', { settings: state.settings });
+  }
+
+  // ─── Downloads & Storage (C3.3) ──────────────────────────────────────────────
+  function setupStorageUI() {
+    const usageEl = document.getElementById('storage-usage');
+    const slider = document.getElementById('storage-cap-slider');
+    const valueEl = document.getElementById('storage-cap-value');
+    const clearBtn = document.getElementById('btn-clear-downloads');
+    if (!usageEl || !slider || !valueEl || !clearBtn) return;
+
+    const fmtMB = (b) => `${Math.round(b / (1024 * 1024))} MB`;
+
+    async function refreshUsage() {
+      const u = await Bridge.invoke('online_cache_usage');
+      if (!u) { usageEl.textContent = 'Cache unavailable'; return; }
+      usageEl.textContent = `${fmtMB(u.used_bytes)} of ${u.cap_mb} MB used`;
+      if (document.activeElement !== slider) {
+        slider.value = u.cap_mb;
+        valueEl.textContent = `${u.cap_mb} MB`;
+      }
+    }
+    refreshUsage();
+    window.__refreshStorageUsage = refreshUsage;
+
+    slider.addEventListener('input', () => {
+      valueEl.textContent = `${slider.value} MB`;
+    });
+    slider.addEventListener('change', async () => {
+      const mb = Number(slider.value);
+      persistSettings({ online_cache_mb: mb });
+      const u = await Bridge.invoke('set_online_cache_cap', { mb });
+      if (u && usageEl) usageEl.textContent = `${fmtMB(u.used_bytes)} of ${u.cap_mb} MB used`;
+    });
+
+    clearBtn.addEventListener('click', async () => {
+      if (!confirm('Remove every downloaded online track from the cache?')) return;
+      const freed = await Bridge.invoke('online_clear_cache');
+      App.showToast(freed ? `Cleared ${fmtMB(freed)} of downloads` : 'Nothing to clear');
+      refreshUsage();
+    });
   }
 
   function setupSettingsPersistence() {

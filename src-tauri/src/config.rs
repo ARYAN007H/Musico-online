@@ -47,6 +47,10 @@ pub struct AppSettings {
     /// Apple Music calls this Autoplay; default on.
     #[serde(default = "default_true")]
     pub autoplay: bool,
+    /// Storage-settings slider: stream-cache cap in MB.  None = built-in
+    /// default (1 GB).  The MUSICO_ONLINE_CACHE_MB env override still wins.
+    #[serde(default)]
+    pub online_cache_mb: Option<u32>,
 }
 
 fn default_volume() -> f32 { 0.68 }
@@ -76,6 +80,7 @@ impl Default for AppSettings {
             repeat_mode: 0,
             theme: default_theme(),
             autoplay: true,
+            online_cache_mb: None,
         }
     }
 }

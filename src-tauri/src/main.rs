@@ -55,6 +55,15 @@ fn main() {
         .manage(AppState::new())
         .setup(|app| {
             let handle = app.handle().clone();
+            // Bootstrap the storage-settings cache cap before anything can
+            // download (env override still wins inside stream.rs).
+            let saved_mb = app
+                .state::<AppState>()
+                .settings
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .online_cache_mb;
+            crate::online::stream::set_cache_cap_override_mb(u64::from(saved_mb.unwrap_or(0)));
             let engine = app.state::<AppState>().engine.clone();
             if let Some(engine) = engine {
                 event_bridge::spawn(engine, handle.clone());
@@ -164,6 +173,9 @@ fn main() {
             commands::online_enqueue,
             commands::online_play_next,
             commands::online_start_radio,
+            commands::online_download,
+            commands::online_cache_usage,
+            commands::set_online_cache_cap,
             commands::online_available,
             commands::online_clear_cache,
             // Stats & playlists

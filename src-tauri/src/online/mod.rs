@@ -29,6 +29,7 @@
 
 pub mod catalog;
 pub mod client;
+pub mod download;
 pub mod models;
 pub mod parse;
 pub mod radio;
@@ -39,7 +40,7 @@ pub use catalog::{browse, genres, home_feed};
 pub use models::{BrowsePage, ItemKind, OnlineTrack, SearchResultPage, Shelf, ShelfItem};
 pub use radio::{radio_tracks, remember_radio_play};
 pub use search::search;
-pub use stream::{clear_cache, resolve_stream, to_song_info, yt_dlp_available};
+pub use stream::{clear_cache, prune_cache_to_cap, resolve_stream, to_song_info, yt_dlp_available};
 #[allow(unused_imports)]
 use stream::cached_file;
 
