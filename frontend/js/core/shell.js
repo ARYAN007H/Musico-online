@@ -73,7 +73,7 @@ function Sidebar() {
       </svg>
       <div class="brand-text">
         <div class="brand-name">MUSICO</div>
-        <div class="brand-sub">v0.6.2</div>
+        <div class="brand-sub">v0.6.3</div>
       </div>
     </div>
     <nav class="side-nav" aria-label="Main">
@@ -298,15 +298,26 @@ async function loadHomeFeed(force = false) {
   if (!force && cached && Date.now() - cached.at < FEED_TTL) return cached;
   Store.set('homeFeedLoading', true);
   try {
+    // Bridge.invoke resolves null on IPC failure (it swallows rejections) —
+    // a null page or zero shelves is a failure, never a cacheable result.
     const page = await Bridge0().invoke('online_home');
-    const entry = { at: Date.now(), shelves: page?.shelves || [] };
+    const shelves = page?.shelves || [];
+    if (!page || shelves.length === 0) {
+      Store.set('homeFeedLoading', false);
+      if (!Store.get('homeFeed')) {
+        Store.set('homeFeedError', 'The feed is unreachable right now.');
+      }
+      return Store.get('homeFeed') || { at: 0, shelves: [] };
+    }
+    const entry = { at: Date.now(), shelves };
     Store.set('homeFeed', entry);
+    Store.set('homeFeedError', null);
     Store.set('homeFeedLoading', false);
     return entry;
   } catch (e) {
     Store.set('homeFeedLoading', false);
     Store.set('homeFeedError', String(e));
-    return { at: Date.now(), shelves: [] };
+    return Store.get('homeFeed') || { at: Date.now(), shelves: [] };
   }
 }
 
@@ -330,7 +341,8 @@ function ShelfCard({ item }) {
     }
   };
   return html`
-    <div class="shelf-card" role="button" tabindex="0" aria-label="${item.title}"
+    <div class="shelf-card ${item.kind === 'artist' ? 'shelf-artist' : ''}"
+         role="button" tabindex="0" aria-label="${item.title}"
          onClick=${onClick}
          onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
       <div class="shelf-art" style=${{ background: bg }} aria-hidden="true">
@@ -359,7 +371,10 @@ function HomeFeed() {
   useEffect(() => { loadHomeFeed(); }, []);
 
   if (error && !feed?.shelves?.length) {
-    return html`<div class="home-status">Couldn't load the feed — ${error}</div>`;
+    return html`<div class="home-status">
+      Couldn't load the feed — ${error}
+      <button class="home-retry" onClick=${() => loadHomeFeed(true)}>Retry</button>
+    </div>`;
   }
   if (!feed?.shelves?.length) {
     return html`<div class="home-status">${loading ? 'Tuning your feed…' : ''}</div>`;

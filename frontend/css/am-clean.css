@@ -183,7 +183,8 @@
   transition: box-shadow var(--duration-normal) var(--ease-out);
 }
 /* Artist cards get the circular treatment, like AM */
-.shelf-card[aria-label] .shelf-art-artist {
+.shelf-artist .shelf-art { border-radius: 50%; }
+.shelf-artist .shelf-art-artist {
   position: absolute;
   inset: 0;
   border-radius: 50%;
@@ -205,4 +206,15 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.home-retry {
+  border: none;
+  margin-left: 8px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--accent-text);
+  background: var(--accent-tint-strong);
 }

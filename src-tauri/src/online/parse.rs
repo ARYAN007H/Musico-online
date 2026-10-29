@@ -466,19 +466,15 @@ pub(crate) fn parse_browse_page(json: &serde_json::Value) -> BrowsePage {
         }
     }
 
+    // Single walk in document order — three separate key passes would group
+    // shelves by type (all carousels, then lists) and scramble page layout.
+    let mut containers = Vec::new();
+    collect_shelves_in_order(json, &mut containers);
     let mut shelves = Vec::new();
-    for container_key in [
-        "musicCarouselShelfRenderer",
-        "musicShelfRenderer",
-        "musicPlaylistShelfRenderer",
-    ] {
-        let mut containers = Vec::new();
-        collect_values(json, container_key, &mut containers);
-        for c in containers {
-            if let Some(shelf) = parse_shelf(&c) {
-                if !shelf.items.is_empty() {
-                    shelves.push(shelf);
-                }
+    for c in containers {
+        if let Some(shelf) = parse_shelf(c) {
+            if !shelf.items.is_empty() {
+                shelves.push(shelf);
             }
         }
     }
@@ -489,6 +485,33 @@ pub(crate) fn parse_browse_page(json: &serde_json::Value) -> BrowsePage {
         .map(str::to_string);
 
     BrowsePage { title, shelves, next_continuation }
+}
+
+/// Collects every shelf container in document order.  Does NOT recurse into
+/// a matched container (nested shelves would duplicate as separate sections).
+fn collect_shelves_in_order<'a>(node: &'a serde_json::Value, out: &mut Vec<&'a serde_json::Value>) {
+    const KEYS: [&str; 3] = [
+        "musicCarouselShelfRenderer",
+        "musicShelfRenderer",
+        "musicPlaylistShelfRenderer",
+    ];
+    match node {
+        serde_json::Value::Object(map) => {
+            for (k, v) in map {
+                if KEYS.contains(&k.as_str()) {
+                    out.push(v);
+                    continue;
+                }
+                collect_shelves_in_order(v, out);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                collect_shelves_in_order(item, out);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Parses one shelf container: header title + mixed card/row contents.
@@ -518,7 +541,11 @@ fn parse_shelf(container: &serde_json::Value) -> Option<Shelf> {
     collect_values(container.get("contents").unwrap_or(&serde_json::Value::Null), "musicTwoRowItemRenderer", &mut two_row);
     collect_values(container.get("contents").unwrap_or(&serde_json::Value::Null), "musicResponsiveListItemRenderer", &mut list_row);
     for it in two_row {
-        items.push(parse_two_row_item(it));
+        let item = parse_two_row_item(it);
+        if item.title.is_empty() {
+            continue; // blank clickable cards are worse than missing ones
+        }
+        items.push(item);
     }
     for it in list_row {
         // List rows carry their own overlay play targets; map the generic
@@ -716,6 +743,223 @@ mod browse_tests {
     }
 
     #[test]
+    fn shelf_order_follows_document_order_across_types() {
+        // musicShelf FIRST, then two carousels — output must keep that order
+        // (three key-grouped passes would emit carousels before the list).
+        let json: serde_json::Value = serde_json::from_str(r#"{
+ "contents": {
+  "singleColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "musicShelfRenderer": {
+           "contents": [
+            {
+             "musicResponsiveListItemRenderer": {
+              "playlistItemData": {
+               "videoId": "q1"
+              },
+              "flexColumns": [
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Quick pick",
+                    "navigationEndpoint": {
+                     "watchEndpoint": {
+                      "videoId": "q1"
+                     }
+                    }
+                   }
+                  ]
+                 }
+                }
+               }
+              ]
+             }
+            }
+           ]
+          }
+         },
+         {
+          "musicCarouselShelfRenderer": {
+           "header": {
+            "musicCarouselShelfHeaderRenderer": {
+             "title": {
+              "runs": [
+               {
+                "text": "Carousel A"
+               }
+              ]
+             }
+            }
+           },
+           "contents": [
+            {
+             "musicTwoRowItemRenderer": {
+              "title": {
+               "runs": [
+                {
+                 "text": "A1"
+                }
+               ]
+              },
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "VLPLa1"
+               }
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "subtitle"
+                }
+               ]
+              }
+             }
+            }
+           ]
+          }
+         },
+         {
+          "musicCarouselShelfRenderer": {
+           "header": {
+            "musicCarouselShelfHeaderRenderer": {
+             "title": {
+              "runs": [
+               {
+                "text": "Carousel B"
+               }
+              ]
+             }
+            }
+           },
+           "contents": [
+            {
+             "musicTwoRowItemRenderer": {
+              "title": {
+               "runs": [
+                {
+                 "text": "B1"
+                }
+               ]
+              },
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "VLPLb1"
+               }
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "subtitle"
+                }
+               ]
+              }
+             }
+            }
+           ]
+          }
+         }
+        ]
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}"#).unwrap();
+        let page = parse_browse_page(&json);
+        let titles: Vec<&str> = page.shelves.iter().map(|s| s.title.as_str()).collect();
+        assert_eq!(
+            titles,
+            vec!["", "Carousel A", "Carousel B"],
+            "document order preserved: quick-picks list first"
+        );
+    }
+
+#[test]
+    fn empty_title_cards_are_skipped() {
+        let json: serde_json::Value = serde_json::from_str(r#"{
+ "contents": {
+  "singleColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "musicCarouselShelfRenderer": {
+           "header": {
+            "musicCarouselShelfHeaderRenderer": {
+             "title": {
+              "runs": [
+               {
+                "text": "Shelf"
+               }
+              ]
+             }
+            }
+           },
+           "contents": [
+            {
+             "musicTwoRowItemRenderer": {
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "VLPLx"
+               }
+              }
+             }
+            },
+            {
+             "musicTwoRowItemRenderer": {
+              "title": {
+               "runs": [
+                {
+                 "text": "Real Card"
+                }
+               ]
+              },
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "VLPLy"
+               }
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "subtitle"
+                }
+               ]
+              }
+             }
+            }
+           ]
+          }
+         }
+        ]
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}"#).unwrap();
+        let page = parse_browse_page(&json);
+        assert_eq!(page.shelves.len(), 1);
+        assert_eq!(page.shelves[0].items.len(), 1, "blank card skipped");
+        assert_eq!(page.shelves[0].items[0].title, "Real Card");
+    }
+
+#[test]
     fn skips_empty_and_garbage_shelves() {
         let json: serde_json::Value = serde_json::from_str(r#"{
           "contents": {

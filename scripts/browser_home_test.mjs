@@ -17,8 +17,6 @@ check('cards render with titles', await page.evaluate(() =>
   document.querySelectorAll('#home-root .shelf-card').length >= 8));
 
 // 2. Song cards play; playlist cards toast honestly
-const songCard = await page.evaluateHandle(() =>
-  [...document.querySelectorAll('.shelf-card')].find(c => c.__itemKind === undefined));
 await page.evaluate(() => {
   // find a song-kind card by clicking behavior: song cards have video_id
   const cards = [...document.querySelectorAll('#home-root .shelf-card')];

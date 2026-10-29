@@ -24,13 +24,14 @@ pub fn browse(browse_id: &str, params: Option<&str>) -> Result<BrowsePage, Strin
         return Err("browse: empty browseId".into());
     }
 
-    let cache_key = (browse_id.to_string(), params.unwrap_or("").to_string());
+    let trimmed = browse_id.trim();
+    let cache_key = (trimmed.to_string(), params.unwrap_or("").to_string());
     if let Some(page) = cache_get(&cache_key) {
         return Ok(page);
     }
 
     let mut body = serde_json::json!({ "context": innertube_context() });
-    body["browseId"] = serde_json::Value::String(browse_id.trim().to_string());
+    body["browseId"] = serde_json::Value::String(trimmed.to_string());
     if let Some(p) = params.map(str::trim).filter(|p| !p.is_empty()) {
         body["params"] = serde_json::Value::String(p.to_string());
     }
@@ -39,9 +40,12 @@ pub fn browse(browse_id: &str, params: Option<&str>) -> Result<BrowsePage, Strin
     let page = parse_browse_page(&json);
 
     if page.shelves.is_empty() {
+        // Don't cache an empty parse: a transient failure or shape drift must
+        // not poison (browseId, params) for the whole TTL.
         log::warn!(
             "InnerTube browse parsed 0 shelves for {browse_id} — API shape may have changed"
         );
+        return Ok(page);
     }
     cache_put(cache_key, &page);
     Ok(page)
