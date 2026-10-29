@@ -87,11 +87,11 @@
 .side-nav .nav-item.active {
   background: var(--accent);
   box-shadow: none;
-  color: #fff;
+  color: var(--on-accent, #fff);
 }
 
 .side-nav .nav-item.active svg {
-  color: #fff;
+  color: var(--on-accent, #fff);
 }
 
 #content-area {

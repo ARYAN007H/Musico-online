@@ -28,6 +28,8 @@
 
   /* Accent-colored TEXT (active labels on tint surfaces) — WCAG-safe per palette */
   --accent-text:       #5b4daa;
+  /* Text/icons ON a solid --accent fill (sidebar selection). */
+  --on-accent:         #ffffff;
 
   /* ─── Dividers & Borders ──────────────────────────────────────────────── */
   --divider:           rgba(155, 140, 120, 0.18);
@@ -147,6 +149,7 @@
   --accent-shadow:     rgba(212, 84, 138, 0.30);
   --accent-glow:       rgba(212, 84, 138, 0.15);
   --accent-text:       #a83a66;
+  --on-accent:         #3d0f24;
 }
 
 [data-palette="aurora"] {
@@ -157,6 +160,7 @@
   --accent-shadow:     rgba(45, 166, 122, 0.30);
   --accent-glow:       rgba(45, 166, 122, 0.15);
   --accent-text:       #1d7152;
+  --on-accent:         #06251a;
 }
 
 [data-palette="ocean"] {
@@ -167,6 +171,7 @@
   --accent-shadow:     rgba(46, 150, 204, 0.30);
   --accent-glow:       rgba(46, 150, 204, 0.15);
   --accent-text:       #1f6f9e;
+  --on-accent:         #062335;
 }
 
 [data-palette="ember"] {
@@ -177,6 +182,7 @@
   --accent-shadow:     rgba(212, 138, 60, 0.30);
   --accent-glow:       rgba(212, 138, 60, 0.15);
   --accent-text:       #96571c;
+  --on-accent:         #2b1602;
 }
 
 [data-palette="mono"] {
@@ -187,6 +193,7 @@
   --accent-shadow:     rgba(122, 122, 128, 0.30);
   --accent-glow:       rgba(122, 122, 128, 0.15);
   --accent-text:       #4e4e54;
+  --on-accent:         #101014;
 }
 
 /* ─── Dark Theme ──────────────────────────────────────────────────────────────
@@ -194,6 +201,7 @@
    Accents carry over per-palette; tints get a touch more presence on dark.   */
 
 [data-theme="dark"] {
+  --on-accent:         #ffffff;
   --surface-base:      #0a0b10;
   --surface:           #0e0f16;
   --surface-raised:    #161721;

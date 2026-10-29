@@ -237,9 +237,9 @@ const App = (() => {
       slot.appendChild(form);
     form.classList.add('browse-search-sidebar');
     const input = document.getElementById('browse-input');
-    input?.addEventListener('focus', () => {
-      if (window.MusicoStore?.get('activeNav') !== 'browse') window.App?.navigateTo?.('browse');
-    });
+      input?.addEventListener('focus', () => {
+        if (window.MusicoStore?.get('activeNav') !== 'browse') window.App?.navigateTo?.('browse');
+      });
     };
     tryMove();
   }
