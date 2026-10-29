@@ -90,6 +90,7 @@ mod tests {
             title: "Cached".into(),
             shelves: Vec::new(),
             next_continuation: None,
+            header: None,
         };
         cache_put(key.clone(), &page);
         assert!(cache_get(&key).is_some());

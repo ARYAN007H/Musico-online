@@ -147,4 +147,23 @@ pub struct BrowsePage {
     pub shelves: Vec<Shelf>,
     #[serde(default)]
     pub next_continuation: Option<String>,
+    /// Detail-page header (album/playlist/artist hero block), when present.
+    #[serde(default)]
+    pub header: Option<HeaderMeta>,
+}
+
+/// The hero block of a detail page: art, title, subtitle ("Album • 2026"),
+/// and the first navigation link found in the subtitle runs (the artist /
+/// owner link — lets the UI link through without another endpoint).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeaderMeta {
+    pub title: String,
+    #[serde(default)]
+    pub subtitle: String,
+    #[serde(default)]
+    pub thumbnail: Option<String>,
+    #[serde(default)]
+    pub navigate_browse_id: Option<String>,
+    #[serde(default)]
+    pub navigate_params: Option<String>,
 }

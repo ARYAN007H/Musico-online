@@ -13,8 +13,39 @@ const MusicoRouter = (() => {
   let top = 0;        // furthest index reached (for canGoForward)
 
   function parseHash() {
-    const h = decodeURIComponent(window.location.hash.replace(/^#\/?/, ''));
+    const raw = window.location.hash.replace(/^#\/?/, '');
+    // Detail targets carry a base64url payload — never percent-decode those.
+    if (raw.startsWith('browse/')) return raw;
+    const h = decodeURIComponent(raw);
     return h || DEFAULT_VIEW;
+  }
+
+  /** True when the current route is a catalog detail page. */
+  function isDetail(view) {
+    return typeof view === 'string' && view.startsWith('browse/');
+  }
+
+  /**
+   * Encodes a detail-page target ({browseId, params, title}) into a route.
+   */
+  function detailRoute(target) {
+    const json = JSON.stringify(target);
+    const b64 = btoa(unescape(encodeURIComponent(json)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return `browse/${b64}`;
+  }
+
+  /** Decodes a detail route payload, or null for malformed routes. */
+  function parseDetailRoute(view) {
+    if (!isDetail(view)) return null;
+    try {
+      let b64 = view.slice('browse/'.length).replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      return JSON.parse(decodeURIComponent(escape(atob(b64))));
+    } catch (e) {
+      console.warn('[router] bad detail route:', e);
+      return null;
+    }
   }
 
   function emit(view) {
@@ -71,7 +102,10 @@ const MusicoRouter = (() => {
     emit(parseHash());
   }
 
-  return { navigate, back, forward, canGoBack, canGoForward, init, current: parseHash };
+  return {
+    navigate, back, forward, canGoBack, canGoForward, init, current: parseHash,
+    isDetail, detailRoute, parseDetailRoute,
+  };
 })();
 
 window.MusicoRouter = MusicoRouter;

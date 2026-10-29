@@ -169,8 +169,20 @@ const Bridge = (() => {
                 browse_id: null, params: null, video_id: 'demo' + s.id, playlist_id: null })) },
           ],
         });
-      case 'online_browse':
-        return Promise.resolve({ title: 'Demo page', shelves: [], next_continuation: null });
+      case 'online_browse': {
+        const tracks = DEMO_SONGS.slice(0, 6).map((s, i) => ({
+          kind: 'song', title: s.title, subtitle: `${s.artist} · ${s.album}`,
+          thumbnail: null, video_id: `demo${s.id}t${i}`, browse_id: null,
+          params: null, playlist_id: null,
+        }));
+        return Promise.resolve({
+          title: 'Demo Album',
+          shelves: [{ title: '', items: tracks }],
+          next_continuation: null,
+          header: { title: 'Demo Album', subtitle: 'Album • 2026', thumbnail: null,
+                    navigate_browse_id: null, navigate_params: null },
+        });
+      }
       case 'online_available':
         return Promise.resolve(true);
       case 'online_clear_cache':

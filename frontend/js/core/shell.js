@@ -328,6 +328,7 @@ function ShelfCard({ item }) {
     ? `url("${item.thumbnail}") center/cover no-repeat, var(--surface-raised)`
     : 'var(--surface-raised)';
   const playable = item.video_id;
+  const navigable = item.browse_id;
   const onClick = () => {
     if (playable) {
       const track = {
@@ -335,9 +336,12 @@ function ShelfCard({ item }) {
         album: '', duration_secs: null, thumbnail: item.thumbnail, cached: false,
       };
       window.Online?.playTrack?.(track, null);
+    } else if (navigable) {
+      Router.navigate(Router.detailRoute({
+        browseId: item.browse_id, params: item.params || null, title: item.title,
+      }));
     } else {
-      // Detail pages land in C2.2 — surface the target honestly.
-      window.App?.showToast?.(`${item.title} — ${item.kind} pages arrive in the next release`);
+      window.App?.showToast?.('This item has no playable or browsable target');
     }
   };
   return html`
@@ -385,6 +389,163 @@ function HomeFeed() {
     </div>`;
 }
 
+// ─── Detail pages (album / playlist / artist) ─────────────────────────────────
+
+function fmtDetailTime(secs) {
+  const s = Math.max(0, Math.floor(secs || 0));
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, '0')}`;
+}
+
+const DETAIL_TTL = 5 * 60 * 1000;
+
+async function loadDetail(target, force = false) {
+  const key = `${target.browseId}|${target.params || ''}`;
+  const cache = Store.get('detailCache') || {};
+  const hit = cache[key];
+  if (hit && !force && Date.now() - hit.at < DETAIL_TTL) {
+    Store.set('detailPage', hit.page);
+    Store.set('detailError', null);
+    return;
+  }
+  Store.set('detailLoading', true);
+  Store.set('detailError', null);
+  try {
+    // Bridge.invoke resolves null on IPC failure — treat as an error.
+    const page = await Bridge0().invoke('online_browse', {
+      browseId: target.browseId, params: target.params || null,
+    });
+    if (!page) throw new Error('The page is unreachable right now.');
+    Store.set('detailPage', page);
+    Store.set('detailError', null);
+    Store.set('detailCache', { ...cache, [key]: { at: Date.now(), page } });
+  } catch (e) {
+    Store.set('detailPage', null);
+    Store.set('detailError', String(e).replace('Error: ', ''));
+  }
+  Store.set('detailLoading', false);
+}
+
+function DetailTrackRow({ item, index }) {
+  const bg = item.thumbnail
+    ? `url("${item.thumbnail}") center/cover no-repeat, var(--surface-raised)`
+    : 'var(--surface-raised)';
+  const play = () => {
+    window.Online?.playTrack?.({
+      video_id: item.video_id, title: item.title, artist: item.subtitle,
+      album: '', duration_secs: item.duration_secs || null, thumbnail: item.thumbnail,
+      cached: false,
+    }, null);
+  };
+  return html`
+    <div class="dt-row" role="button" tabindex="0" aria-label="Play ${item.title}"
+         onClick=${play}
+         onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); play(); } }}>
+      <span class="dt-index">${index + 1}</span>
+      <div class="dt-art" style=${{ background: bg }} aria-hidden="true" />
+      <div class="dt-meta">
+        <div class="dt-title">${item.title}</div>
+        ${item.subtitle ? html`<div class="dt-sub">${item.subtitle}</div>` : null}
+      </div>
+      <button class="dt-enqueue" title="Add to queue (downloads in background)"
+              aria-label="Add ${item.title} to queue"
+              onClick=${(e) => {
+                e.stopPropagation();
+                window.Online?.enqueueTrack?.({
+                  video_id: item.video_id, title: item.title, artist: item.subtitle,
+                  album: '', duration_secs: item.duration_secs || null, thumbnail: item.thumbnail,
+                  cached: false,
+                }, e.currentTarget);
+              }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>`;
+}
+
+function DetailView() {
+  const target = useStoreValue('detail', null);
+  const page = useStoreValue('detailPage', null);
+  const loading = useStoreValue('detailLoading', false);
+  const error = useStoreValue('detailError', null);
+
+  useEffect(() => {
+    if (target) loadDetail(target);
+  }, [target?.browseId, target?.params]);
+
+  if (!target) return null;
+
+  // Flattened playable rows (tracklists) + remaining shelves (discography etc.)
+  const tracks = [];
+  const shelves = [];
+  for (const shelf of page?.shelves || []) {
+    const playableRows = shelf.items.filter((it) => it.video_id);
+    if (playableRows.length === shelf.items.length && shelf.items.length > 0 && !shelf.title.toLowerCase().includes('featur')) {
+      tracks.push(...shelf.items);
+    } else {
+      shelves.push(shelf);
+    }
+  }
+  const header = page?.header || { title: target.title || '' };
+  const art = header.thumbnail
+    ? `url("${header.thumbnail}") center/cover no-repeat, var(--surface-raised)`
+    : 'var(--surface-raised)';
+
+  const playAll = () => {
+    if (tracks.length) window.Online?.playTrack?.({
+      video_id: tracks[0].video_id, title: tracks[0].title, artist: tracks[0].subtitle,
+      album: '', duration_secs: null, thumbnail: tracks[0].thumbnail, cached: false,
+    }, null);
+  };
+  const queueAll = () => {
+    let queued = 0;
+    for (const t of tracks) {
+      window.Online?.enqueueTrack?.({
+        video_id: t.video_id, title: t.title, artist: t.subtitle,
+        album: '', duration_secs: null, thumbnail: t.thumbnail, cached: false,
+      }, null);
+      queued += 1;
+    }
+    window.App?.showToast?.(`Queued ${queued} tracks — streams resolve in the background`);
+  };
+
+  return html`
+    <div class="detail">
+      <div class="detail-hero">
+        <div class="detail-art" style=${{ background: art }} aria-hidden="true" />
+        <div class="detail-head">
+          <div class="detail-kind">${(header.subtitle || target.kind || 'Page').toUpperCase()}</div>
+          <h1 class="detail-title">${header.title}</h1>
+          ${header.subtitle && header.subtitle !== header.title ? html`
+            <div class="detail-sub">${header.subtitle}</div>` : null}
+          ${tracks.length ? html`
+            <div class="detail-actions">
+              <button class="detail-play" onClick=${playAll} aria-label="Play all">
+                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="8,5 20,12 8,19"/></svg>
+                Play
+              </button>
+              <button class="detail-queueall" onClick=${queueAll} aria-label="Queue all tracks">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                Queue all
+              </button>
+            </div>` : null}
+        </div>
+      </div>
+
+      ${loading ? html`<div class="home-status">Loading…</div>` : null}
+      ${error ? html`<div class="home-status">
+        Couldn't load this page — ${error}
+        <button class="home-retry" onClick=${() => loadDetail(target)}>Retry</button>
+      </div>` : null}
+
+      ${tracks.length ? html`
+        <div class="dt-list">
+          ${tracks.map((t, i) => html`<${DetailTrackRow} key=${t.video_id + i} item=${t} index=${i} />`)}
+        </div>` : null}
+
+      ${shelves.map((sh, i) => html`<${Shelf} key=${sh.title + i} shelf=${sh} />`)}
+    </div>`;
+}
+
 // ─── Mount ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -392,8 +553,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const topbarRoot = document.getElementById('topbar-root');
   const panelRoot = document.getElementById('panel-root');
   const homeRoot = document.getElementById('home-root');
+  const detailRoot = document.getElementById('detail-root');
   if (sidebarRoot) render(html`<${Sidebar} />`, sidebarRoot);
   if (topbarRoot) render(html`<${TopBar} />`, topbarRoot);
   if (panelRoot) render(html`<${QueuePanel} />`, panelRoot);
   if (homeRoot) render(html`<${HomeFeed} />`, homeRoot);
+  if (detailRoot) render(html`<${DetailView} />`, detailRoot);
 });
