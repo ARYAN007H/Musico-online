@@ -91,6 +91,7 @@ const App = (() => {
     setupSettingsPersistence();
     setupStorageUI();
     setupOfflineToggle();
+    relocateSearchToSidebar();
     setupEq();
     setupScanButton();
     setupLikedFilter();
@@ -215,6 +216,32 @@ const App = (() => {
   function persistSettings(patch) {
     Object.assign(state.settings, patch);
     Bridge.invoke('save_settings', { settings: state.settings });
+  }
+
+  // ─── Sidebar search (AM placement, C4.3 UI overhaul #37) ─────────────────────
+  // MOVE (not clone) the legacy search form into the sidebar: its listeners
+  // (debounced search, history) travel with the node.  Focusing it opens the
+  // Home pane where results render — exactly AM's search-from-anywhere flow.
+  function relocateSearchToSidebar() {
+    const form = document.getElementById('browse-form');
+    if (!form) return;
+    // The sidebar is Preact-rendered (module script) — it may not exist yet
+    // when this classic script's init runs.  Poll briefly for the slot.
+    let tries = 0;
+    const tryMove = () => {
+      const slot = document.getElementById('sidebar-search-slot');
+      if (!slot) {
+        if (++tries < 40) requestAnimationFrame(tryMove);
+        return;
+      }
+      slot.appendChild(form);
+    form.classList.add('browse-search-sidebar');
+    const input = document.getElementById('browse-input');
+    input?.addEventListener('focus', () => {
+      if (window.MusicoStore?.get('activeNav') !== 'browse') window.App?.navigateTo?.('browse');
+    });
+    };
+    tryMove();
   }
 
   // ─── Airplane Mode (C4.3) ────────────────────────────────────────────────────

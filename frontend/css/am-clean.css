@@ -220,10 +220,11 @@
 }
 
 /* ─── Detail pages (album / playlist / artist) ───────────────────────────────── */
+/* AM content panes run full width with generous gutters — no 860px cap. */
 .detail-wrap {
-  max-width: 860px;
+  max-width: 1480px;
   margin: 0 auto;
-  padding: var(--space-24) var(--space-20) 140px;
+  padding: var(--space-24) 40px 96px;
 }
 
 .detail-hero {
@@ -417,7 +418,7 @@
 
 /* ─── Browse genre grid ──────────────────────────────────────────────────────── */
 /* .detail-wrap already carries these exact rules above — don't re-list it here. */
-.genres-wrap { max-width: 860px; margin: 0 auto; padding: var(--space-24) var(--space-20) 140px; }
+.genres-wrap { max-width: 1480px; margin: 0 auto; padding: var(--space-24) 40px 96px; }
 
 .genre-grid {
   display: grid;
@@ -431,7 +432,9 @@
   aspect-ratio: 1.6;
   border: var(--border-card);
   border-radius: var(--radius-card);
-  background: linear-gradient(135deg, var(--accent-tint-strong), var(--surface-card));
+  background: linear-gradient(135deg,
+    hsla(var(--hue, 258), 45%, 55%, 0.28),
+    var(--surface-card));
   cursor: pointer;
   padding: 12px 14px;
   display: flex;
@@ -620,3 +623,86 @@
 }
 .detail-downloadall svg { width: 14px; height: 14px; }
 .detail-downloadall:hover { background: var(--accent-tint); color: var(--accent-text); }
+
+/* ─── Home density (AM Listen Now model, #37 chunk B) ───────────────────────── */
+.shelf-title-hero { font-size: 22px; font-weight: var(--weight-bold); margin-bottom: var(--space-12); }
+.shelf-row-hero { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-16); overflow-x: visible; }
+.shelf-row-hero .shelf-card { flex: none; width: auto; scroll-snap-align: none; }
+.shelf-card-hero .shelf-art { width: 100%; height: auto; aspect-ratio: 1; border-radius: var(--radius-lg); }
+.shelf-card-hero .shelf-card-title { font-size: 15px; font-weight: var(--weight-semi); margin-top: var(--space-10); }
+.shelf-card-hero .shelf-card-sub { font-size: 13px; }
+
+/* Sidebar search (moved legacy node) — the base .browse-search is a floating
+   overlay in the old layout; the sidebar copy is a normal flow field. */
+.browse-search-sidebar {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: auto;
+  max-width: none;
+  margin: 0 var(--space-10) var(--space-12);
+  padding: var(--space-6) var(--space-12);
+  border-radius: var(--radius-pill);
+}
+.browse-search-sidebar .browse-search-btn { display: none; }
+.browse-search-sidebar input {
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 13px;
+}
+.browse-search-sidebar .browse-search-icon { width: 15px; height: 15px; }
+#sidebar-search-slot:empty { display: none; }
+
+/* ─── AM polish: hover lift, play reveal, press states, genre hues (#37 C) ──── */
+
+/* Cards lift subtly on hover; art deepens its shadow. */
+.shelf-card, .genre-card, .lib-card {
+  transition: transform var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.shelf-card:hover, .lib-card:hover { transform: translateY(-2px); }
+.genre-card:hover { transform: translateY(-2px) scale(1.01); }
+.shelf-card:active, .genre-card:active, .lib-card:active { transform: scale(0.98); }
+
+/* Play glyph fades in over hero art on hover (AM album-card behavior). */
+.shelf-card-hero { position: relative; }
+.shelf-card-hero .shelf-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  background: rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+.shelf-card-hero .shelf-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--radius-circle);
+  background: rgba(255, 255, 255, 0.92);
+  color: #111;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-out),
+              transform var(--duration-normal) var(--ease-spring);
+  z-index: 2;
+  pointer-events: none;
+}
+.shelf-card-hero .shelf-play svg { width: 20px; height: 20px; margin-left: 2px; }
+.shelf-card-hero:hover .shelf-art::after,
+.shelf-card-hero:hover .shelf-play { opacity: 1; }
+.shelf-card-hero:hover .shelf-play { transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+
+/* Genre cards get per-category hues (hash of the title). */
+.genre-card { --hue: 258; }

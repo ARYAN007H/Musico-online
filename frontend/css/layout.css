@@ -61,12 +61,22 @@
   gap: 2px;
 }
 
+/* AM sidebar rows: compact 30px, 13px type, solid accent selection pill. */
 .side-nav .nav-item {
   width: 100%;
   justify-content: flex-start;
-  padding: var(--space-10) var(--space-12);
-  border-radius: 10px;
-  color: var(--text-secondary);
+  padding: var(--space-6) var(--space-10);
+  min-height: 30px;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+}
+
+.side-nav .nav-item svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
 }
 
 .side-nav .nav-item:hover {
@@ -75,21 +85,13 @@
 }
 
 .side-nav .nav-item.active {
-  background: var(--accent-tint);
+  background: var(--accent);
   box-shadow: none;
-  color: var(--accent-text);
+  color: #fff;
 }
 
-.side-nav .nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 18px;
-  border-radius: 2px;
-  background: var(--accent);
+.side-nav .nav-item.active svg {
+  color: #fff;
 }
 
 #content-area {
@@ -505,3 +507,22 @@
     display: none; /* manage the queue on the Queue page */
   }
 }
+
+
+/* ─── Overlay scrollbars (macOS overlay feel) ───────────────────────────────── */
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: rgba(0, 0, 0, 0.38); }
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.4); }

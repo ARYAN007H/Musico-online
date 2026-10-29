@@ -74,9 +74,10 @@ function Sidebar() {
       </svg>
       <div class="brand-text">
         <div class="brand-name">MUSICO</div>
-        <div class="brand-sub">v0.6.3</div>
+        <div class="brand-sub">v0.6.11</div>
       </div>
     </div>
+    <div id="sidebar-search-slot"></div>
     <nav class="side-nav" aria-label="Main">
       ${NAV_GROUPS.map((g) => html`
         <div class="nav-group" key=${g.label}>
@@ -329,7 +330,7 @@ async function loadHomeFeed(force = false) {
 
 function Bridge0() { return window.Bridge || { invoke: async () => ({ shelves: [] }) }; }
 
-function ShelfCard({ item }) {
+function ShelfCard({ item, hero }) {
   const bg = item.thumbnail
     ? `url("${item.thumbnail}") center/cover no-repeat, var(--surface-raised)`
     : 'var(--surface-raised)';
@@ -351,7 +352,7 @@ function ShelfCard({ item }) {
     }
   };
   return html`
-    <div class="shelf-card ${item.kind === 'artist' ? 'shelf-artist' : ''}"
+    <div class="shelf-card ${item.kind === 'artist' ? 'shelf-artist' : ''} ${hero ? 'shelf-card-hero' : ''}"
          role="button" tabindex="0" aria-label="${item.title}"
          data-ctx=${playable ? 'song' : (navigable ? 'nav' : null)}
          data-kind=${item.kind || null}
@@ -365,18 +366,23 @@ function ShelfCard({ item }) {
          onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
       <div class="shelf-art" style=${{ background: bg }} aria-hidden="true">
         ${item.kind === 'artist' ? html`<div class="shelf-art-artist" />` : null}
+        ${hero ? html`<button type="button" class="shelf-play" tabindex="-1"
+                             aria-hidden="true"
+                             onClick=${(e) => { e.stopPropagation(); onClick(); }}>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>` : null}
       </div>
       <div class="shelf-card-title">${item.title}</div>
       <div class="shelf-card-sub">${item.subtitle}</div>
     </div>`;
 }
 
-function Shelf({ shelf }) {
+function Shelf({ shelf, hero }) {
   return html`
     <section class="shelf" aria-label=${shelf.title}>
-      <h2 class="shelf-title">${shelf.title}</h2>
-      <div class="shelf-row">
-        ${shelf.items.map((item, i) => html`<${ShelfCard} key=${item.video_id || item.browse_id || i} item=${item} />`)}
+      <h2 class="shelf-title ${hero ? 'shelf-title-hero' : ''}">${shelf.title}</h2>
+      <div class="shelf-row ${hero ? 'shelf-row-hero' : ''}">
+        ${shelf.items.map((item, i) => html`<${ShelfCard} key=${item.video_id || item.browse_id || i} item=${item} hero=${hero} />`)}
       </div>
     </section>`;
 }
@@ -399,7 +405,7 @@ function HomeFeed() {
   }
   return html`
     <div class="home-feed">
-      ${feed.shelves.map((s, i) => html`<${Shelf} key=${s.title + i} shelf=${s} />`)}
+      ${feed.shelves.map((s, i) => html`<${Shelf} key=${s.title + i} shelf=${s} hero=${i === 0} />`)}
     </div>`;
 }
 
@@ -653,6 +659,7 @@ function GenresView() {
           <button class="genre-card" key=${g.browse_id + i}
                   data-ctx="nav" data-browse-id=${g.browse_id}
                   data-params=${g.params || null} data-title=${g.title}
+                  style=${{ '--hue': String((g.title || '').split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7)) }}
                   onClick=${() => open(g)} aria-label="Browse ${g.title}">
             <span class="genre-name">${g.title}</span>
           </button>`)}
