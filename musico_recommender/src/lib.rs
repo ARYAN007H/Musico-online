@@ -320,6 +320,16 @@ impl MusicRecommender {
     }
 
     /// All liked song ids (for UI sync).
+    pub fn liked_ids(&self) -> Result<Vec<String>, RecommenderError> {
+        Ok(self
+            .cache
+            .likes
+            .iter()
+            .filter(|(_, &s)| s == LikeState::Liked)
+            .map(|(id, _)| id.clone())
+            .collect())
+    }
+
     // ─── Catalog library (C4.1) — thin delegation to library.rs ─────────────
 
     pub fn library_put(&self, entry: &library::CatalogEntry) -> Result<(), RecommenderError> {
@@ -340,16 +350,6 @@ impl MusicRecommender {
         ids: &[String],
     ) -> Result<Vec<String>, RecommenderError> {
         library::contains(&self.store, kind, ids)
-    }
-
-    pub fn liked_ids(&self) -> Result<Vec<String>, RecommenderError> {
-        Ok(self
-            .cache
-            .likes
-            .iter()
-            .filter(|(_, &s)| s == LikeState::Liked)
-            .map(|(id, _)| id.clone())
-            .collect())
     }
 
     fn refresh_like_vectors(&self) -> Result<(), RecommenderError> {

@@ -49,11 +49,11 @@ fn tree_name(kind: &str) -> Result<&'static str, RecommenderError> {
 }
 
 /// Inserts or updates an entry (same id = replace, added_at refreshed).
-pub fn put(store: &Store, entry: &CatalogEntry) -> Result<(), RecommenderError> {
-    let tree = store.db.open_tree(tree_name(&entry.kind)?)?;
+pub(crate) fn put(store: &Store, entry: &CatalogEntry) -> Result<(), RecommenderError> {
     if entry.id.is_empty() || entry.title.is_empty() {
         return Err(RecommenderError::Invalid("library entry needs id and title".into()));
     }
+    let tree = store.db.open_tree(tree_name(&entry.kind)?)?;
     let bytes = bincode::serialize(entry)
         .map_err(|e| RecommenderError::Serialization(e.to_string()))?;
     tree.insert(entry.id.as_bytes(), bytes)
@@ -61,20 +61,21 @@ pub fn put(store: &Store, entry: &CatalogEntry) -> Result<(), RecommenderError> 
     Ok(())
 }
 
-pub fn remove(store: &Store, kind: &str, id: &str) -> Result<(), RecommenderError> {
+pub(crate) fn remove(store: &Store, kind: &str, id: &str) -> Result<(), RecommenderError> {
     let tree = store.db.open_tree(tree_name(kind)?)?;
     tree.remove(id.as_bytes()).map_err(RecommenderError::DbError)?;
     Ok(())
 }
 
 /// All entries of a kind, newest first.
-pub fn list(store: &Store, kind: &str) -> Result<Vec<CatalogEntry>, RecommenderError> {
+pub(crate) fn list(store: &Store, kind: &str) -> Result<Vec<CatalogEntry>, RecommenderError> {
     let tree = store.db.open_tree(tree_name(kind)?)?;
     let mut out = Vec::new();
     for pair in tree.iter() {
         let (_, value) = pair.map_err(RecommenderError::DbError)?;
-        if let Ok(entry) = bincode::deserialize::<CatalogEntry>(&value) {
-            out.push(entry);
+        match bincode::deserialize::<CatalogEntry>(&value) {
+            Ok(entry) => out.push(entry),
+            Err(e) => log::warn!("library: dropping undecodable {kind} entry: {e}"),
         }
     }
     out.sort_by(|a, b| b.added_at.cmp(&a.added_at).then(a.title.cmp(&b.title)));
@@ -82,7 +83,7 @@ pub fn list(store: &Store, kind: &str) -> Result<Vec<CatalogEntry>, RecommenderE
 }
 
 /// Which of `ids` are saved (preserves input order) — drives Add-button state.
-pub fn contains(store: &Store, kind: &str, ids: &[String]) -> Result<Vec<String>, RecommenderError> {
+pub(crate) fn contains(store: &Store, kind: &str, ids: &[String]) -> Result<Vec<String>, RecommenderError> {
     let tree = store.db.open_tree(tree_name(kind)?)?;
     Ok(ids
         .iter()
@@ -109,21 +110,15 @@ mod tests {
         }
     }
 
-    fn tmp_store() -> Store {
-        let dir = std::env::temp_dir().join(format!(
-            "musico-lib-test-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        Store::open(dir.to_str().unwrap()).expect("open tmp store")
+    fn tmp_store() -> (tempfile::TempDir, Store) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let store = Store::open(dir.path().to_str().unwrap()).expect("open tmp store");
+        (dir, store)
     }
 
     #[test]
     fn roundtrip_put_list_remove() {
-        let store = tmp_store();
+        let (_dir, store) = tmp_store();
         put(&store, &entry("a1", "album", "Alpha", 100)).unwrap();
         put(&store, &entry("a2", "album", "Beta", 200)).unwrap();
         put(&store, &entry("t1", "track", "Track", 300)).unwrap();
@@ -146,7 +141,7 @@ mod tests {
 
     #[test]
     fn re_put_updates_entry_in_place() {
-        let store = tmp_store();
+        let (_dir, store) = tmp_store();
         put(&store, &entry("x", "artist", "Old Title", 1)).unwrap();
         put(&store, &entry("x", "artist", "New Title", 2)).unwrap();
         let artists = list(&store, "artist").unwrap();
@@ -156,7 +151,7 @@ mod tests {
 
     #[test]
     fn rejects_unknown_kind_and_empty_fields() {
-        let store = tmp_store();
+        let (_dir, store) = tmp_store();
         assert!(put(&store, &entry("e", "playlist", "Nope", 1)).is_err());
         assert!(put(&store, &entry("", "album", "No id", 1)).is_err());
         assert!(put(&store, &entry("e", "album", "", 1)).is_err());
@@ -164,7 +159,7 @@ mod tests {
 
     #[test]
     fn list_10k_entries_stays_fast() {
-        let store = tmp_store();
+        let (_dir, store) = tmp_store();
         for i in 0..10_000u32 {
             let e = entry(&format!("id{i}"), "track", &format!("Song {:05}", 9_999 - i), i as i64);
             put(&store, &e).unwrap();
