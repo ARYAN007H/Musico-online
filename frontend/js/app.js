@@ -97,6 +97,7 @@ const App = (() => {
 
     // Load library
     state.library = await Bridge.invoke('get_library');
+    window.MusicoStore?.set('localLibrary', state.library);
     renderSongList(state.library);
     renderAlbumGrid(state.library);
     generateWaveform();
@@ -578,6 +579,7 @@ const App = (() => {
 
     Bridge.listen('library-updated', (e) => {
       state.library = e.payload ?? e;
+      window.MusicoStore?.set('localLibrary', state.library);
       renderSongList(state.library);
       renderAlbumGrid(state.library);
       document.getElementById('lib-count').textContent = `${state.library.length} songs`;

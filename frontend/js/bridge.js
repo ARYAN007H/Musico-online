@@ -29,6 +29,8 @@ const Bridge = (() => {
   let onError = null;
 
   const libStore = {};
+  // Test-only seeding hook (browser suites); never used by the app itself.
+  if (typeof window !== 'undefined') window.__libStore = libStore;
   async function invoke(cmd, args = {}) {
     if (isTauri) {
       try {

@@ -108,12 +108,13 @@ check('rail jump targets a letter card', await page.evaluate(() =>
   String(document.querySelector('.lib-card[data-letter="Z"]')?.textContent)
     .includes('Zeta Waves')));
 
-// 6. Songs tab restores the legacy list.
+// 6. Songs tab = merged list (local demo songs + saved tracks), windowed.
 await page.evaluate(() => window.MusicoStore.set('libTab', 'songs'));
-await page.waitForTimeout(300);
-check('songs tab restores legacy list', await page.evaluate(() =>
-  document.getElementById('song-list-view').style.display !== 'none' &&
-  !document.querySelector('#library-catalog .lib-grid')));
+await page.waitForTimeout(400);
+check('songs tab shows merged rows', await page.evaluate(() =>
+  document.querySelectorAll('.lib-rows .lib-row').length >= 8));
+check('letter headers render', await page.evaluate(() =>
+  document.querySelectorAll('.lib-letter-header').length >= 1));
 
 // 7. Add-to-Library round-trip through the mock bridge directly.
 const added = await page.evaluate(async () => {
@@ -127,6 +128,34 @@ const added = await page.evaluate(async () => {
   return { hit, titled: list.some((e) => e.title === 'Roundtrip') };
 });
 check('round-trip: contains + list see the entry', added.hit.length === 1 && added.titled);
+
+// 8. C4.1 gate: 10k rows stay windowed — tiny DOM, growing on scroll.
+await page.evaluate(() => {
+  const store = window.__libStore;
+  store.track = [];
+  for (let i = 0; i < 10_000; i++) {
+    store.track.push({
+      id: `perf${i}`, kind: 'track', title: `Perf Song ${String(i).padStart(5, '0')}`,
+      subtitle: 'Perf Artist', thumbnail: null, browse_id: null, params: null,
+      video_id: `perfvid${i}`, added_at: 1_700_000_000_000 + i,
+    });
+  }
+  ['libAlbums', 'libArtists', 'libTracks'].forEach((k) => window.MusicoStore.set(k, null));
+  window.MusicoStore.set('libRev', (window.MusicoStore.get('libRev') || 0) + 1);
+});
+await page.evaluate(() => window.MusicoStore.set('libTab', 'songs'));
+await page.waitForTimeout(800);
+check('10k rows: windowed DOM under 500 nodes', await page.evaluate(() => {
+  const rows = document.querySelectorAll('.lib-rows .lib-row').length;
+  return rows > 50 && rows < 500;
+}));
+await page.evaluate(() => {
+  const s = document.querySelector('.lib-sentinel');
+  s?.scrollIntoView();
+});
+await page.waitForTimeout(500);
+check('window grows after scrolling to sentinel', await page.evaluate(() =>
+  document.querySelectorAll('.lib-rows .lib-row').length > 100));
 
 console.log(results.join('\n'));
 console.log('JS errors:', errors.length ? errors : 'none');
