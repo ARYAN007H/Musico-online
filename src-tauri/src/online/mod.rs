@@ -108,8 +108,12 @@ mod live_tests {
     #[test]
     #[ignore = "network + yt-dlp heavy — run with MUSICO_LIVE_TESTS=1"]
     fn live_batch_download_15_tracks() {
-        let tracks = radio_tracks("dQw4w9WgXcQ").expect("radio tracks");
-        let picked: Vec<(String, String)> = tracks
+        // Seed from SEARCH, not radio: radio shuffles and can return only
+        // multi-hour mixes (0 candidates in the duration window), while the
+        // songs chip reliably returns normal-length tracks with durations.
+        let page = search("classic rock hits", false, None).expect("search");
+        let picked: Vec<(String, String)> = page
+            .tracks
             .iter()
             .filter(|t| t.duration_secs.is_some_and(|d| (60..=600).contains(&d)))
             .take(15)
