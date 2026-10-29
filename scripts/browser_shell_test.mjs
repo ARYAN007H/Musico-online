@@ -23,20 +23,18 @@ await page.click('#nav-forward');
 await page.waitForTimeout(150);
 check('forward works', await page.evaluate(() => location.hash === '#/queue'));
 
-// Review fix 1: library list/grid toggles must NOT navigate
+// Review fix 1, superseded by C4.1c: the merged Songs list replaces the
+// legacy list/grid toggle — verify it stays hidden and navigation works.
 await page.click('#sidebar-root .nav-item[data-view="library"]');
 await page.waitForTimeout(150);
-// The list/grid toggle lives on the Songs tab now (C4.1b catalog tabs).
 await page.evaluate(() => window.MusicoStore.set('libTab', 'songs'));
 await page.waitForTimeout(200);
-const gridBtn = await page.$('#view-toggle-grid, [data-view="grid"]');
-if (gridBtn) {
-  await gridBtn.click();
-  await page.waitForTimeout(150);
-  check('grid toggle does not navigate', await page.evaluate(() => location.hash === '#/library'));
-  check('library view stays active', await page.evaluate(() =>
-    document.getElementById('view-library').classList.contains('active')));
-} else { results.push('SKIP grid toggle (not found)'); }
+check('library view stays active', await page.evaluate(() =>
+  document.getElementById('view-library').classList.contains('active')));
+check('legacy list/grid toggle stays hidden', await page.evaluate(() =>
+  document.querySelector('#view-library .view-toggle').style.display === 'none'));
+check('merged songs rows render', await page.evaluate(() =>
+  document.querySelectorAll('.lib-rows .lib-row').length >= 8));
 
 // Review fix 2: LCD tracks PositionUpdate + Seeked
 await page.evaluate(async () => {

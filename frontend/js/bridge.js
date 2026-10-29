@@ -29,6 +29,8 @@ const Bridge = (() => {
   let onError = null;
 
   const libStore = {};
+  // Test-only seeding hook (browser suites); mock mode only — never in Tauri.
+  if (typeof window !== 'undefined' && !window.__TAURI__) window.__libStore = libStore;
   async function invoke(cmd, args = {}) {
     if (isTauri) {
       try {

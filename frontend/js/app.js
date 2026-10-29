@@ -97,6 +97,7 @@ const App = (() => {
 
     // Load library
     state.library = await Bridge.invoke('get_library');
+    window.MusicoStore?.set('localLibrary', state.library);
     renderSongList(state.library);
     renderAlbumGrid(state.library);
     generateWaveform();
@@ -172,9 +173,9 @@ const App = (() => {
         tag.lastChild.textContent = ` ${short}`;
       }
     }
-    if (s.library_view_mode === 'grid') {
-      document.getElementById('toggle-grid')?.click();
-    }
+    // library_view_mode retired by C4.1c — the merged Songs list replaced
+    // the legacy list/grid views; restoring the click would un-hide the
+    // retired grid over it.
     if (typeof s.shuffle_mode === 'number') {
       state.shuffleMode = s.shuffle_mode;
       document.getElementById('btn-shuffle')?.classList.toggle('active', s.shuffle_mode > 0);
@@ -578,6 +579,7 @@ const App = (() => {
 
     Bridge.listen('library-updated', (e) => {
       state.library = e.payload ?? e;
+      window.MusicoStore?.set('localLibrary', state.library);
       renderSongList(state.library);
       renderAlbumGrid(state.library);
       document.getElementById('lib-count').textContent = `${state.library.length} songs`;
@@ -723,6 +725,10 @@ const App = (() => {
         state.searchQuery = '';
         bar.classList.remove('has-query');
         filterLibrary();
+        // The merged-songs list (C4.1c) listens for 'input', not this
+        // handler — keep both in sync or the list stays filtered while the
+        // input looks empty.
+        input.dispatchEvent(new Event('input', { bubbles: true }));
         input.blur();
       }
     });
