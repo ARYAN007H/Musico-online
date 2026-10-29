@@ -28,6 +28,7 @@ const Bridge = (() => {
 
   let onError = null;
 
+  const libStore = {};
   async function invoke(cmd, args = {}) {
     if (isTauri) {
       try {
@@ -167,6 +168,9 @@ const Bridge = (() => {
             { title: 'Trending songs', items: DEMO_SONGS.slice(6).map((s) => ({
                 kind: 'song', title: s.title, subtitle: s.artist, thumbnail: null,
                 browse_id: null, params: null, video_id: 'demo' + s.id, playlist_id: null })) },
+            { title: 'Albums for you', items: DEMO_SONGS.slice(2, 5).map((s) => ({
+                kind: 'album', title: s.album, subtitle: s.artist, thumbnail: null,
+                browse_id: 'MPREb' + s.id, params: null, video_id: null, playlist_id: null })) },
           ],
         });
       case 'online_browse': {
@@ -188,6 +192,29 @@ const Bridge = (() => {
           .map((t, i) => ({ kind: 'unknown', title: t, subtitle: '', thumbnail: null,
                             video_id: null, browse_id: 'FEmusic_moods_and_genres_category',
                             params: 'mock' + i, playlist_id: null })));
+      case 'library_list': {
+        const list = (libStore[args?.kind] || []).slice();
+        list.sort((a, b) => (b.added_at || 0) - (a.added_at || 0));
+        return Promise.resolve(list);
+      }
+      case 'library_add':
+        if (args?.entry && ['album', 'artist', 'track'].includes(args.entry.kind)) {
+          const e = args.entry;
+          e.added_at = Date.now();
+          const list = (libStore[e.kind] = libStore[e.kind] || []);
+          const i = list.findIndex((x) => x.id === e.id);
+          if (i >= 0) list[i] = e; else list.push(e); // replace, like the backend
+        }
+        return Promise.resolve(true);
+      case 'library_remove': {
+        const list = libStore[args?.kind] || [];
+        const i = list.findIndex((e) => e.id === args?.id);
+        if (i >= 0) list.splice(i, 1);
+        return Promise.resolve(true);
+      }
+      case 'library_contains':
+        return Promise.resolve((args?.ids || []).filter((id) =>
+          (libStore[args?.kind] || []).some((e) => e.id === id)));
       case 'online_play_next':
       case 'online_start_radio':
         return Promise.resolve(true);

@@ -38,13 +38,29 @@ check('song cards carry context data', await page.evaluate(
     !!document.querySelector(sel).dataset.videoId, songSel));
 await ctxClick(songSel);
 await page.waitForTimeout(150);
-check('song menu opens with 5 items', await page.evaluate(() => {
+check('song menu opens with 6 items', await page.evaluate(() => {
   const items = [...document.querySelectorAll('.ctx-menu .ctx-item')];
-  return items.length === 5 &&
-    items.map((i) => i.textContent).join('|') === 'Play|Play Next|Play Last|Download|Start Radio';
+  return items.length === 6 &&
+    items.map((i) => i.textContent).join('|') ===
+    'Play|Play Next|Play Last|Download|Add to Library|Start Radio';
 }));
 
+// 1b. Playlist cards get no Add to Library — the library has no playlist kind.
+await page.evaluate(() => window.MusicoRouter.navigate('browse'));
+await page.waitForTimeout(300);
+await page.evaluate((sel) => {
+  const el = document.querySelector(sel);
+  const r = el.getBoundingClientRect();
+  el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.x + 5, clientY: r.y + 5 }));
+}, '#home-root .shelf-card[data-ctx="nav"][data-kind="playlist"]');
+await page.waitForTimeout(150);
+check('playlist menu is Open-only', await page.evaluate(() =>
+  [...document.querySelectorAll('.ctx-menu .ctx-item')].map((i) => i.textContent).join('|') === 'Open'));
+await page.keyboard.press('Escape');
+
 // 2. Play Next routes through online_play_next and closes the menu.
+await ctxClick(songSel);
+await page.waitForTimeout(150);
 await page.click('.ctx-menu .ctx-item >> text=Play Next');
 await page.waitForTimeout(200);
 const pn = await ipcCalls('online_play_next');

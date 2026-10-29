@@ -354,6 +354,8 @@ function ShelfCard({ item }) {
     <div class="shelf-card ${item.kind === 'artist' ? 'shelf-artist' : ''}"
          role="button" tabindex="0" aria-label="${item.title}"
          data-ctx=${playable ? 'song' : (navigable ? 'nav' : null)}
+         data-kind=${item.kind || null}
+         data-thumb=${item.thumbnail || null}
          data-video-id=${item.video_id || null}
          data-title=${item.title}
          data-artist=${item.subtitle || null}
@@ -639,6 +641,22 @@ function GenresView() {
 
 // ─── Context menu (C3.1 play-from-anywhere) ──────────────────────────────────
 
+function saveToLibrary(kind, partial) {
+  return window.Bridge?.invoke?.('library_add', { entry: { ...partial, kind } })
+    .then((ok) => {
+      if (ok === null) return ok;
+      window.App?.showToast?.(`Saved to Library — ${partial.title || kind}`);
+      invalidateLibraryLists();
+      return ok;
+    });
+}
+
+// Library pages re-fetch when this revision counter moves (any add/remove).
+function invalidateLibraryLists() {
+  ['libAlbums', 'libArtists', 'libTracks'].forEach((k) => Store.set(k, null));
+  Store.set('libRev', (Store.get('libRev') || 0) + 1);
+}
+
 function trackFromDataset(ds) {
   return {
     video_id: ds.videoId, title: ds.title || '', artist: ds.artist || '',
@@ -659,15 +677,31 @@ function ctxItemsFor(el) {
       { label: 'Play Next', action: () => Online.playNext?.(track) },
       { label: 'Play Last', action: () => Online.enqueueTrack?.(track) },
       { label: 'Download', action: () => Online.downloadTrack?.(track) },
+      { label: 'Add to Library', action: () => saveToLibrary('track', {
+          id: ds.videoId, title: ds.title || '', subtitle: ds.artist || '',
+          video_id: ds.videoId, browse_id: null, params: null,
+          thumbnail: ds.thumb || null,
+        }) },
       { sep: true },
       { label: 'Start Radio', action: () => Online.startRadio?.(track) },
     ];
   }
   if (ds.ctx === 'nav' && ds.browseId) {
+    const kind = ds.kind;
     const open = () => Router?.navigate(Router?.detailRoute({
       browseId: ds.browseId, params: ds.params || null, title: ds.title || '',
     }));
-    return [{ label: 'Open', action: open }];
+    const items = [{ label: 'Open', action: open }];
+    // Only album/artist cards: the backend library has no playlist/genre
+    // kind, and a silent wrong-kind save shows up nowhere.
+    if (kind === 'album' || kind === 'artist') {
+      items.push({ label: 'Add to Library', action: () => saveToLibrary(kind, {
+        id: ds.browseId, title: ds.title || '', subtitle: ds.artist || '',
+        thumbnail: ds.thumb || null,
+        browse_id: ds.browseId, params: ds.params || null,
+      }) });
+    }
+    return items;
   }
   if (ds.ctx === 'qrow' && ds.qid) {
     const items = [];
@@ -729,6 +763,191 @@ function ContextMenu() {
     </div>`;
 }
 
+// ─── Library (C4.1: saved albums / artists / tracks) ─────────────────────────
+
+const LIB_TABS = [
+  { id: 'recent', label: 'Recently Added' },
+  { id: 'albums', label: 'Albums' },
+  { id: 'artists', label: 'Artists' },
+  { id: 'songs', label: 'Songs' },
+];
+
+const AZ = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+function libLetter(t) {
+  const c = (t.title || '?').trim().charAt(0).toUpperCase();
+  return /[A-Z]/.test(c) ? c : '#';
+}
+
+// Per-key sequence guards — album/artist/track loads run in parallel and
+// must not invalidate each other's completions.
+const libLoadSeq = {};
+
+async function loadLibraryKind(kind, storeKey) {
+  const seq = (libLoadSeq[storeKey] = (libLoadSeq[storeKey] || 0) + 1);
+  Store.set(storeKey + 'Loading', true);
+  try {
+    const items = await Bridge0().invoke('library_list', { kind });
+    if (seq !== libLoadSeq[storeKey]) return; // a newer load superseded this one
+    // Only an array is a result; an empty one is a fresh library.  Anything
+    // else (IPC null from a missing bridge, garbage) is an error with Retry.
+    if (Array.isArray(items)) {
+      Store.set(storeKey, items);
+      Store.set(storeKey + 'Error', null);
+    } else {
+      Store.set(storeKey, []);
+      Store.set(storeKey + 'Error', 'Couldn\u2019t load the library.');
+    }
+  } catch (e) {
+    if (seq !== libLoadSeq[storeKey]) return;
+    Store.set(storeKey, []);
+    Store.set(storeKey + 'Error', String(e));
+  }
+  if (seq === libLoadSeq[storeKey]) Store.set(storeKey + 'Loading', false);
+}
+
+function LibraryCard({ entry, onOpen }) {
+  const bg = entry.thumbnail
+    ? `url("${entry.thumbnail}") center/cover no-repeat, var(--surface-raised)`
+    : 'var(--surface-raised)';
+  return html`
+    <div class="lib-card" role="button" tabindex="0" data-letter=${libLetter(entry)}
+         aria-label="${entry.title}" onClick=${onOpen}
+         onKeyDown=${(e) => { if (e.key === 'Enter') onOpen(); }}>
+      <div class="lib-card-art" style=${{ background: bg }} aria-hidden="true" />
+      <div class="lib-card-title">${entry.title}</div>
+      <div class="lib-card-sub">${entry.subtitle || ''}</div>
+    </div>`;
+}
+
+function LibRow({ entry, onPlay, onOpen }) {
+  const open = () => onOpen && entry.browse_id && onOpen();
+  return html`
+    <div class="lib-row" role="button" tabindex="0" data-letter=${libLetter(entry)}
+         onClick=${open}
+         onKeyDown=${(e) => { if (e.key === 'Enter') open(); }}>
+      <button class="lib-row-play" aria-label="Play ${entry.title}"
+              onClick=${(e) => { e.stopPropagation(); onPlay(); }}>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <div class="lib-meta">
+        <div class="lib-title">${entry.title}</div>
+        <div class="lib-sub">${entry.subtitle || ''}</div>
+      </div>
+    </div>`;
+}
+
+function AZRail({ entries, rootSelector }) {
+  const letters = [...new Set(entries.map(libLetter))].sort();
+  const jump = (l) => {
+    const root = document.querySelector(rootSelector);
+    const first = root && root.querySelector(`[data-letter="${l}"]`);
+    if (first) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  return html`
+    <div class="az-rail" aria-hidden="true">
+      ${AZ.map((l) => html`
+        <button class=${'az-letter' + (letters.includes(l) ? '' : ' az-off')}
+                key=${l} tabIndex=${-1} onClick=${() => jump(l)}>${l}</button>`)}
+    </div>`;
+}
+
+function openCatalogEntry(entry) {
+  if (!entry.browse_id) return;
+  window.MusicoRouter.navigate(window.MusicoRouter.detailRoute({
+    browseId: entry.browse_id, params: entry.params || null, title: entry.title,
+  }));
+}
+
+function LibraryCatalog() {
+  const tab = useStoreValue('libTab', 'recent');
+  const albums = useStoreValue('libAlbums', null);
+  const artists = useStoreValue('libArtists', null);
+  const tracks = useStoreValue('libTracks', null);
+  const active = useStoreValue('activeNav', null);
+  const rev = useStoreValue('libRev', 0);
+  const loadErr = useStoreValue('libAlbumsError', null);
+  const loading = useStoreValue('libAlbumsLoading', false);
+
+  // Load a kind's list the first time its tab (or Library itself) is shown,
+  // and again whenever a save invalidates the revision.
+  useEffect(() => {
+    if (active !== 'library') return;
+    if (tab !== 'songs' && !albums) loadLibraryKind('album', 'libAlbums');
+    if (tab !== 'songs' && !artists) loadLibraryKind('artist', 'libArtists');
+    if (tab !== 'songs' && !tracks) loadLibraryKind('track', 'libTracks');
+  }, [active, tab, rev]);
+
+  // The legacy local-songs list owns the Songs tab; catalog tabs hide it.
+  // Restoring must respect the user's list/grid toggle, not force the list.
+  useEffect(() => {
+    const hide = tab !== 'songs';
+    const gridOn = document.getElementById('toggle-grid')?.classList.contains('active');
+    const listEl = document.getElementById('song-list-view');
+    const gridEl = document.getElementById('album-grid-view');
+    if (listEl) listEl.style.display = hide || gridOn ? 'none' : '';
+    if (gridEl) gridEl.style.display = hide || !gridOn ? 'none' : '';
+    const sortBar = document.querySelector('#view-library .sort-bar');
+    if (sortBar) sortBar.style.display = hide ? 'none' : '';
+    const viewToggle = document.querySelector('#view-library .view-toggle');
+    if (viewToggle) viewToggle.style.display = hide ? 'none' : '';
+  }, [tab]);
+
+  if (active !== 'library') return null;
+
+  // Recently Added = everything saved (albums, artists, tracks), newest first.
+  // Lists default to null until first load — never spread them bare.
+  const recent = [...(albums || []), ...(artists || []), ...(tracks || [])]
+    .sort((a, b) => (b.added_at || 0) - (a.added_at || 0));
+
+  const cards = (entries, onOpen) => html`
+    <div class="lib-grid">
+      ${entries.map((e) => html`<${LibraryCard} key=${e.kind + e.id} entry=${e} onOpen=${onOpen} />`)}
+    </div>`;
+
+  const statusHtml = (emptyText) => loadErr
+    ? html`<div class="home-status">Couldn't load the library — ${loadErr}
+        <button class="home-retry" onClick=${() => invalidateLibraryLists()}>Retry</button>
+      </div>`
+    : loading && !recent.length
+      ? html`<div class="home-status">Loading library…</div>`
+      : html`<div class="lib-empty">${emptyText}</div>`;
+
+  let body = null;
+  if (tab === 'recent') {
+    body = recent.length ? cards(recent, (e) => openCatalogEntry(e)) : statusHtml('Nothing saved yet — add albums and artists from Browse.');
+  } else if (tab === 'albums') {
+    body = albums && albums.length ? html`
+      <div class="lib-with-rail">${cards(albums, (e) => openCatalogEntry(e))}<${AZRail} entries=${albums} rootSelector=".lib-with-rail" /></div>`
+      : statusHtml('No saved albums yet.');
+  } else if (tab === 'artists') {
+    body = artists && artists.length ? html`
+      <div class="lib-with-rail">
+        <div class="lib-rows">
+          ${artists.map((e) => html`<${LibRow} key=${e.id} entry=${e} onOpen=${openCatalogEntry}
+              onPlay=${() => window.App?.showToast?.('Artist radio lands with C4.4')} />`)}
+        </div>
+        <${AZRail} entries=${artists} rootSelector=".lib-with-rail" />
+      </div>`
+      : statusHtml('No followed artists yet.');
+  } else {
+    // Songs tab = the legacy local list stays visible (merge with saved
+    // tracks + virtualization lands in C4.1c).
+    body = null;
+  }
+
+  return html`
+    <div class="lib-catalog">
+      <div class="lib-tabs" role="tablist">
+        ${LIB_TABS.map((t) => html`
+          <button class=${'lib-tab' + (tab === t.id ? ' active' : '')} key=${t.id}
+                  role="tab" aria-selected=${tab === t.id}
+                  onClick=${() => Store.set('libTab', t.id)}>${t.label}</button>`)}
+      </div>
+      ${tab !== 'songs' ? body : null}
+    </div>`;
+}
+
 // ─── Mount ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -746,4 +965,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (genresRoot) render(html`<${GenresView} />`, genresRoot);
   const ctxRoot = document.getElementById('ctx-root');
   if (ctxRoot) render(html`<${ContextMenu} />`, ctxRoot);
+  const libRoot = document.getElementById('library-catalog');
+  if (libRoot) render(html`<${LibraryCatalog} />`, libRoot);
 });

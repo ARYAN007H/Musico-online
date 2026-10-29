@@ -524,14 +524,17 @@ pub fn get_liked_ids(state: State<AppState>) -> Vec<String> {
 pub use musico_recommender::library::CatalogEntry as LibraryEntry;
 
 #[tauri::command]
-pub fn library_add(state: State<AppState>, mut entry: LibraryEntry) -> Result<(), String> {
+pub fn library_add(state: State<AppState>, mut entry: LibraryEntry) -> Result<bool, String> {
     // Backend stamps added_at — a client-supplied value would let a stale
     // frontend bury entries in Recently Added forever.
     entry.added_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0);
-    rec(&state)?.library_put(&entry).map_err(|e| e.to_string())
+    rec(&state)?.library_put(&entry).map_err(|e| e.to_string())?;
+    // Bool, not unit: Tauri serializes Ok(()) as null, and the frontend
+    // distinguishes success from failure by null-vs-value.
+    Ok(true)
 }
 
 #[tauri::command]
