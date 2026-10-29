@@ -22,6 +22,7 @@ pub(crate) const INNERTUBE_CLIENT: &str = "WEB_REMIX";
 const INNERTUBE_VERSION_FALLBACK: &str = "1.20261025.12.00";
 pub(crate) const SEARCH_URL: &str = "https://music.youtube.com/youtubei/v1/search";
 pub(crate) const NEXT_URL: &str = "https://music.youtube.com/youtubei/v1/next";
+pub(crate) const BROWSE_URL: &str = "https://music.youtube.com/youtubei/v1/browse";
 const HOME_URL: &str = "https://music.youtube.com/";
 
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0";

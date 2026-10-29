@@ -73,7 +73,7 @@ function Sidebar() {
       </svg>
       <div class="brand-text">
         <div class="brand-name">MUSICO</div>
-        <div class="brand-sub">v0.6.2</div>
+        <div class="brand-sub">v0.6.3</div>
       </div>
     </div>
     <nav class="side-nav" aria-label="Main">
@@ -288,13 +288,112 @@ function QueuePanel() {
     </aside>`;
 }
 
+// ─── Home (Listen Now) feed ───────────────────────────────────────────────────
+
+// Feed cache in the store: 5-minute TTL mirrors the backend browse cache.
+const FEED_TTL = 5 * 60 * 1000;
+
+async function loadHomeFeed(force = false) {
+  const cached = Store.get('homeFeed');
+  if (!force && cached && Date.now() - cached.at < FEED_TTL) return cached;
+  Store.set('homeFeedLoading', true);
+  try {
+    // Bridge.invoke resolves null on IPC failure (it swallows rejections) —
+    // a null page or zero shelves is a failure, never a cacheable result.
+    const page = await Bridge0().invoke('online_home');
+    const shelves = page?.shelves || [];
+    if (!page || shelves.length === 0) {
+      Store.set('homeFeedLoading', false);
+      if (!Store.get('homeFeed')) {
+        Store.set('homeFeedError', 'The feed is unreachable right now.');
+      }
+      return Store.get('homeFeed') || { at: 0, shelves: [] };
+    }
+    const entry = { at: Date.now(), shelves };
+    Store.set('homeFeed', entry);
+    Store.set('homeFeedError', null);
+    Store.set('homeFeedLoading', false);
+    return entry;
+  } catch (e) {
+    Store.set('homeFeedLoading', false);
+    Store.set('homeFeedError', String(e));
+    return Store.get('homeFeed') || { at: Date.now(), shelves: [] };
+  }
+}
+
+function Bridge0() { return window.Bridge || { invoke: async () => ({ shelves: [] }) }; }
+
+function ShelfCard({ item }) {
+  const bg = item.thumbnail
+    ? `url("${item.thumbnail}") center/cover no-repeat, var(--surface-raised)`
+    : 'var(--surface-raised)';
+  const playable = item.video_id;
+  const onClick = () => {
+    if (playable) {
+      const track = {
+        video_id: item.video_id, title: item.title, artist: item.subtitle,
+        album: '', duration_secs: null, thumbnail: item.thumbnail, cached: false,
+      };
+      window.Online?.playTrack?.(track, null);
+    } else {
+      // Detail pages land in C2.2 — surface the target honestly.
+      window.App?.showToast?.(`${item.title} — ${item.kind} pages arrive in the next release`);
+    }
+  };
+  return html`
+    <div class="shelf-card ${item.kind === 'artist' ? 'shelf-artist' : ''}"
+         role="button" tabindex="0" aria-label="${item.title}"
+         onClick=${onClick}
+         onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
+      <div class="shelf-art" style=${{ background: bg }} aria-hidden="true">
+        ${item.kind === 'artist' ? html`<div class="shelf-art-artist" />` : null}
+      </div>
+      <div class="shelf-card-title">${item.title}</div>
+      <div class="shelf-card-sub">${item.subtitle}</div>
+    </div>`;
+}
+
+function Shelf({ shelf }) {
+  return html`
+    <section class="shelf" aria-label=${shelf.title}>
+      <h2 class="shelf-title">${shelf.title}</h2>
+      <div class="shelf-row">
+        ${shelf.items.map((item, i) => html`<${ShelfCard} key=${item.video_id || item.browse_id || i} item=${item} />`)}
+      </div>
+    </section>`;
+}
+
+function HomeFeed() {
+  const feed = useStoreValue('homeFeed', null);
+  const loading = useStoreValue('homeFeedLoading', false);
+  const error = useStoreValue('homeFeedError', null);
+
+  useEffect(() => { loadHomeFeed(); }, []);
+
+  if (error && !feed?.shelves?.length) {
+    return html`<div class="home-status">
+      Couldn't load the feed — ${error}
+      <button class="home-retry" onClick=${() => loadHomeFeed(true)}>Retry</button>
+    </div>`;
+  }
+  if (!feed?.shelves?.length) {
+    return html`<div class="home-status">${loading ? 'Tuning your feed…' : ''}</div>`;
+  }
+  return html`
+    <div class="home-feed">
+      ${feed.shelves.map((s, i) => html`<${Shelf} key=${s.title + i} shelf=${s} />`)}
+    </div>`;
+}
+
 // ─── Mount ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
   const sidebarRoot = document.getElementById('sidebar-root');
   const topbarRoot = document.getElementById('topbar-root');
   const panelRoot = document.getElementById('panel-root');
+  const homeRoot = document.getElementById('home-root');
   if (sidebarRoot) render(html`<${Sidebar} />`, sidebarRoot);
   if (topbarRoot) render(html`<${TopBar} />`, topbarRoot);
   if (panelRoot) render(html`<${QueuePanel} />`, panelRoot);
+  if (homeRoot) render(html`<${HomeFeed} />`, homeRoot);
 });

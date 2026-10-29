@@ -634,6 +634,29 @@ pub async fn online_enqueue(
     Ok(())
 }
 
+/// The home (Listen Now) feed: editorial + personalized shelves.
+#[tauri::command]
+pub async fn online_home() -> Result<crate::online::BrowsePage, String> {
+    tauri::async_runtime::spawn_blocking(crate::online::home_feed)
+        .await
+        .map_err(|e| format!("home task failed: {e}"))?
+}
+
+/// Generic catalog browse page (album / artist / playlist / genre) by its
+/// InnerTube navigation endpoint.  Detail pages (C2.2) call this with
+/// browseId+params captured from shelf items.
+#[tauri::command]
+pub async fn online_browse(
+    browse_id: String,
+    params: Option<String>,
+) -> Result<crate::online::BrowsePage, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::online::browse(&browse_id, params.as_deref())
+    })
+    .await
+    .map_err(|e| format!("browse task failed: {e}"))?
+}
+
 /// Is yt-dlp present?  Frontend shows an install hint when not.
 #[tauri::command]
 pub fn online_available() -> bool {
