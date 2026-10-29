@@ -219,9 +219,12 @@ function QueueRow({ song, current, onPlay }) {
   const bg = song.thumb
     ? `url("${song.thumb}") center/cover no-repeat, ${song.artGrad || 'var(--surface-raised)'}`
     : (song.artGrad || 'var(--surface-raised)');
+  const vid = String(song.id || '').startsWith('yt:') ? String(song.id).slice(3) : null;
   return html`
     <div class="qp-row ${current ? 'qp-current' : ''}" role="button" tabindex="0"
          aria-label="Play ${song.title}" onClick=${onPlay}
+         data-ctx="qrow" data-qid=${song.id} data-vid=${vid}
+         data-title=${song.title} data-artist=${song.artist || null}
          onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPlay(); } }}>
       <div class="qp-art" style=${{ background: bg }} aria-hidden="true" />
       <div class="qp-meta">
@@ -348,6 +351,12 @@ function ShelfCard({ item }) {
   return html`
     <div class="shelf-card ${item.kind === 'artist' ? 'shelf-artist' : ''}"
          role="button" tabindex="0" aria-label="${item.title}"
+         data-ctx=${playable ? 'song' : (navigable ? 'nav' : null)}
+         data-video-id=${item.video_id || null}
+         data-title=${item.title}
+         data-artist=${item.subtitle || null}
+         data-browse-id=${item.browse_id || null}
+         data-params=${item.params || null}
          onClick=${onClick}
          onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
       <div class="shelf-art" style=${{ background: bg }} aria-hidden="true">
@@ -445,6 +454,8 @@ function DetailTrackRow({ item, index }) {
   };
   return html`
     <div class="dt-row" role="button" tabindex="0" aria-label="Play ${item.title}"
+         data-ctx="song" data-video-id=${item.video_id}
+         data-title=${item.title} data-artist=${item.subtitle || null}
          onClick=${play}
          onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); play(); } }}>
       <span class="dt-index">${index + 1}</span>
@@ -615,10 +626,98 @@ function GenresView() {
       <div class="genre-grid">
         ${genres.map((g, i) => html`
           <button class="genre-card" key=${g.browse_id + i}
+                  data-ctx="nav" data-browse-id=${g.browse_id}
+                  data-params=${g.params || null} data-title=${g.title}
                   onClick=${() => open(g)} aria-label="Browse ${g.title}">
             <span class="genre-name">${g.title}</span>
           </button>`)}
       </div>
+    </div>`;
+}
+
+// ─── Context menu (C3.1 play-from-anywhere) ──────────────────────────────────
+
+function trackFromDataset(ds) {
+  return {
+    video_id: ds.videoId, title: ds.title || '', artist: ds.artist || '',
+    album: '', duration_secs: null, thumbnail: null, cached: false,
+  };
+}
+
+function ctxItemsFor(el) {
+  const ds = el.dataset;
+  const Online = window.Online || {};
+  const Router = window.MusicoRouter;
+  if (ds.ctx === 'song' && ds.videoId) {
+    return [
+      { label: 'Play', action: () => Online.playTrack?.(trackFromDataset(ds), null) },
+      { label: 'Play Next', action: () => Online.playNext?.(trackFromDataset(ds)) },
+      { label: 'Play Last', action: () => Online.enqueueTrack?.(trackFromDataset(ds)) },
+      { sep: true },
+      { label: 'Start Radio', action: () => Online.startRadio?.(trackFromDataset(ds)) },
+    ];
+  }
+  if (ds.ctx === 'nav' && ds.browseId) {
+    const open = () => Router?.navigate(Router?.detailRoute({
+      browseId: ds.browseId, params: ds.params || null, title: ds.title || '',
+    }));
+    return [{ label: 'Open', action: open }];
+  }
+  if (ds.ctx === 'qrow' && ds.qid) {
+    const items = [];
+    if (ds.vid) {
+      items.push({ label: 'Start Radio', action: () => Online.startRadio?.({
+        video_id: ds.vid, title: ds.title || '', artist: ds.artist || '',
+        album: '', duration_secs: null, thumbnail: null, cached: false,
+      }) });
+    }
+    items.push({
+      label: 'Remove from Queue',
+      action: () => window.Bridge?.invoke?.('remove_from_queue', { songId: ds.qid }),
+    });
+    return items;
+  }
+  return [];
+}
+
+function ContextMenu() {
+  const menu = useStoreValue('ctxMenu', null);
+
+  useEffect(() => {
+    const onCtx = (e) => {
+      const el = e.target.closest?.('[data-ctx]');
+      if (!el) return;
+      const items = ctxItemsFor(el);
+      if (!items.length) return;
+      e.preventDefault();
+      Store.set('ctxMenu', { x: e.clientX, y: e.clientY, items });
+    };
+    const close = () => { if (Store.get('ctxMenu')) Store.set('ctxMenu', null); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('contextmenu', onCtx);
+    document.addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('blur', close);
+    return () => {
+      document.removeEventListener('contextmenu', onCtx);
+      document.removeEventListener('click', close);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('blur', close);
+    };
+  }, []);
+
+  if (!menu) return null;
+  const W = 208, ITEM_H = 34, SEP_H = 9, PAD = 8;
+  const h = PAD * 2 + menu.items.reduce(
+    (acc, it) => acc + (it.sep ? SEP_H : ITEM_H), 0);
+  const x = Math.max(8, Math.min(menu.x, window.innerWidth - W - 8));
+  const y = Math.max(8, Math.min(menu.y, window.innerHeight - h - 8));
+  return html`
+    <div class="ctx-menu" style=${{ left: x + 'px', top: y + 'px' }} role="menu">
+      ${menu.items.map((it, i) => it.sep
+        ? html`<div class="ctx-sep" key=${'s' + i} />`
+        : html`<button class="ctx-item" role="menuitem" key=${i}
+                       onClick=${it.action}>${it.label}</button>`)}
     </div>`;
 }
 
@@ -637,4 +736,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (homeRoot) render(html`<${HomeFeed} />`, homeRoot);
   if (detailRoot) render(html`<${DetailView} />`, detailRoot);
   if (genresRoot) render(html`<${GenresView} />`, genresRoot);
+  const ctxRoot = document.getElementById('ctx-root');
+  if (ctxRoot) render(html`<${ContextMenu} />`, ctxRoot);
 });
