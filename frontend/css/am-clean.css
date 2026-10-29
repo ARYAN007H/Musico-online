@@ -628,8 +628,14 @@
 
 /* ─── Home density (AM Listen Now model, #37 chunk B) ───────────────────────── */
 .shelf-title-hero { font-size: 22px; font-weight: var(--weight-bold); margin-bottom: var(--space-12); }
-.shelf-row-hero { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-16); overflow-x: visible; }
-.shelf-row-hero .shelf-card { flex: none; width: auto; scroll-snap-align: none; }
+.shelf-row-hero {
+  display: flex;
+  gap: var(--space-16);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: var(--space-8);
+}
+.shelf-row-hero .shelf-card { flex: 0 0 260px; width: 260px; scroll-snap-align: start; }
 .shelf-card-hero .shelf-art { width: 100%; height: auto; aspect-ratio: 1; border-radius: var(--radius-lg); }
 .shelf-card-hero .shelf-card-title { font-size: 15px; font-weight: var(--weight-semi); margin-top: var(--space-10); }
 .shelf-card-hero .shelf-card-sub { font-size: 13px; }
