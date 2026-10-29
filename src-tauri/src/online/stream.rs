@@ -31,7 +31,7 @@ pub fn set_cache_cap_override_mb(mb: u64) {
 /// Pure cap precedence — env wins over the settings override, default last.
 fn cap_from(env_mb: Option<u64>, override_mb: u64) -> u64 {
     let mb = env_mb.unwrap_or(if override_mb == 0 { CACHE_MAX_BYTES / (1024 * 1024) } else { override_mb });
-    mb.max(64) * 1024 * 1024
+    mb.max(64).saturating_mul(1024 * 1024)
 }
 
 /// The effective cap in MB (what the storage UI shows as the ceiling).

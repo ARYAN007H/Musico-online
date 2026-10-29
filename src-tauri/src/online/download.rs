@@ -1,8 +1,9 @@
 //! Download manager (C3.3): tracks explicit "Download" actions on online
 //! tracks so the UI can show per-download state.  A download IS a stream
-//! cache fill: `resolve_stream` does the work (yt-dlp, verify, prune, cover
-//! art via `to_song_info` on playback), the manager only booksends the
-//! state machine and remembers outcomes for the settings readout.
+//! cache fill: `resolve_stream` does the actual work (yt-dlp, verify,
+//! prune); the manager only runs the state machine.  The persistent truth
+//! of "is it downloaded" stays the filesystem (`cached_file`) — this map
+//! is session-scoped UI state.
 //!
 //! State machine: `resolving → done | failed(reason)`.  A failed download
 //! is retried by invoking the command again — there is no mid-stream pause.

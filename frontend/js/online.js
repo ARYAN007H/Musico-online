@@ -252,16 +252,24 @@ const Online = (() => {
   }
 
   // ─── Explicit downloads (C3.3) ───────────────────────────────────────────────
+  // Downloads share the enqueue pool — N context-menu downloads must not
+  // spawn N concurrent yt-dlp processes (same rule as Queue-all).
   async function downloadTrack(track) {
-    if (!track) return;
+    if (!track) return Promise.resolve();
     markRow(track.video_id, 'dl-busy');
-    const ok = await Bridge.invoke('online_download', { track });
-    if (ok !== null) trackMap.set(track.video_id, track);
-    return ok;
+    return new Promise((resolve) => {
+      enqueueQueue.push(async () => {
+        const ok = await Bridge.invoke('online_download', { track });
+        if (ok !== null) trackMap.set(track.video_id, track);
+        resolve(ok);
+      });
+      pumpEnqueue();
+    });
   }
 
   // Row badges for in-flight downloads (browse rows carry data-video-id).
   function markRow(videoId, cls, on = true) {
+    if (!/^[A-Za-z0-9_-]{1,20}$/.test(videoId || '')) return;
     document.querySelectorAll(`[data-video-id="${videoId}"]`).forEach((row) => {
       row.classList.toggle(cls, on);
       if (cls === 'dl-busy' && !on) row.classList.add('dl-done');

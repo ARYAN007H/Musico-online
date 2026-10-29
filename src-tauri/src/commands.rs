@@ -554,7 +554,7 @@ pub async fn online_play(
         serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
     );
 
-    let file = resolve_online_track(&handle, &track).await?;
+    let file = resolve_online_track(&handle, &track, false).await?;
 
     let _ = handle.emit(
         "online-status",
@@ -580,10 +580,13 @@ pub async fn online_play(
 }
 
 /// Resolve an online track to a local file, emitting `online-status`
-/// progress events. Shared by every online play/queue command.
+/// progress events. Shared by every online play/queue command.  `quiet`
+/// skips the error event — downloads report failure via `download-state`
+/// instead (a triple toast helped nobody).
 async fn resolve_online_track(
     handle: &AppHandle,
     track: &OnlineTrack,
+    quiet: bool,
 ) -> Result<std::path::PathBuf, String> {
     let video_id = track.video_id.clone();
     let file = tauri::async_runtime::spawn_blocking(move || {
@@ -594,10 +597,12 @@ async fn resolve_online_track(
     match file {
         Ok(f) => Ok(f),
         Err(e) => {
-            let _ = handle.emit(
-                "online-status",
-                serde_json::json!({ "stage": "error", "videoId": track.video_id, "message": e }),
-            );
+            if !quiet {
+                let _ = handle.emit(
+                    "online-status",
+                    serde_json::json!({ "stage": "error", "videoId": track.video_id, "message": e }),
+                );
+            }
             Err(e)
         }
     }
@@ -617,7 +622,7 @@ pub async fn online_enqueue(
         serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
     );
 
-    let file = resolve_online_track(&handle, &track).await?;
+    let file = resolve_online_track(&handle, &track, false).await?;
 
     let song = crate::online::to_song_info(&track, &file);
     state
@@ -642,7 +647,7 @@ pub async fn online_play_next(
         serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
     );
 
-    let file = resolve_online_track(&handle, &track).await?;
+    let file = resolve_online_track(&handle, &track, false).await?;
 
     let song = crate::online::to_song_info(&track, &file);
     state
@@ -692,7 +697,7 @@ pub async fn online_download(handle: AppHandle, track: OnlineTrack) -> Result<()
         serde_json::json!({ "videoId": track.video_id, "stage": "resolving", "title": track.title }),
     );
 
-    let result = match resolve_online_track(&handle, &track).await {
+    let result = match resolve_online_track(&handle, &track, true).await {
         Ok(_) => Ok(()),
         Err(e) => Err(e),
     };
@@ -724,17 +729,16 @@ pub fn set_online_cache_cap(
     state: State<'_, AppState>,
     mb: Option<u32>,
 ) -> Result<serde_json::Value, String> {
-    let mut settings = {
-        let mut s = state.settings.lock().unwrap_or_else(|e| e.into_inner());
-        s.online_cache_mb = mb;
-        s.clone()
-    };
+    let mut settings = state.settings.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    settings.online_cache_mb = mb;
     settings.save()?;
+    *state.settings.lock().unwrap_or_else(|e| e.into_inner()) = settings;
     let mb64 = u64::from(mb.unwrap_or(0));
     crate::online::stream::set_cache_cap_override_mb(mb64);
     crate::online::prune_cache_to_cap();
     let used = crate::online::stream::cache_usage_bytes();
-    Ok(serde_json::json!({ "used_bytes": used, "cap_mb": mb.unwrap_or(1024) }))
+    // Report the EFFECTIVE cap — the env override may differ from the slider.
+    Ok(serde_json::json!({ "used_bytes": used, "cap_mb": crate::online::stream::effective_cap_mb() }))
 }
 
 /// The home (Listen Now) feed: editorial + personalized shelves.
