@@ -27,7 +27,10 @@ const HOME_URL: &str = "https://music.youtube.com/";
 
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0";
 
-pub(crate) const HTTP_TIMEOUT: Duration = Duration::from_secs(12);
+/// Total request budget (connect + body read).  20 s because YouTube's
+/// `next` (radio) endpoint has been observed taking >12 s end-to-end under
+/// load — a timeout there must be headroom, not a hard failure.
+pub(crate) const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
 /// How often the live client version is re-fetched.
 const VERSION_TTL: Duration = Duration::from_secs(24 * 3600);
 
@@ -136,8 +139,15 @@ impl Transport for ReqwestTransport {
                 "YouTube Music returned HTTP {status}"
             )));
         }
-        resp.json()
-            .map_err(|e| TransportError::Fatal(format!("bad response body: {e}")))
+        resp.json().map_err(|e| {
+            // A timeout while reading the body surfaces as a decode error in
+            // blocking reqwest — it's transient (slow endpoint), not fatal.
+            if e.is_timeout() {
+                TransportError::Retryable(format!("response timed out mid-body: {e}"))
+            } else {
+                TransportError::Fatal(format!("bad response body: {e}"))
+            }
+        })
     }
 }
 

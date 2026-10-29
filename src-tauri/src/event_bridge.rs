@@ -5,7 +5,7 @@
 //! On `SongEnded` it auto-advances to the next queued song, so playback
 //! never dead-ends.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde_json::json;
@@ -283,7 +283,83 @@ pub(crate) fn play_and_track(
         }
     }
     apply_normalization(eng, state, &song.id);
+    preresolve_next_online(state);
     true
+}
+
+/// The video id whose stream was pre-resolved most recently (single-flight:
+/// repeated play starts over the same upcoming track don't spawn duplicate
+/// resolve workers).
+static PRERESOLVED_LAST: std::sync::LazyLock<Mutex<Option<String>>> =
+    std::sync::LazyLock::new(|| Mutex::new(None));
+
+/// Picks the upcoming track to pre-resolve: the front of the queue when it
+/// is an online (`yt:`) track not already pre-resolved.  Pure decision —
+/// unit-tested without network.
+fn preresolve_pick(next_id: Option<&str>, last: Option<&str>) -> Option<String> {
+    let vid = next_id?.strip_prefix("yt:")?;
+    if vid.is_empty() || last == Some(vid) {
+        return None;
+    }
+    Some(vid.to_string())
+}
+
+/// Resolves the next queued online track in the background while the current
+/// one plays, so advancing into it is a cache hit (< 1 s) instead of a fresh
+/// yt-dlp download.  Fire and forget: failures are silent — the advance path
+/// re-resolves on demand, and resolve_stream is idempotent (per-video lock +
+/// cached-file check make duplicate workers harmless).
+fn preresolve_next_online(state: &tauri::State<AppState>) {
+    let next_id = state
+        .queue
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .peek_next()
+        .map(|s| s.id);
+    let last = PRERESOLVED_LAST
+        .lock()
+        .map(|g| g.clone())
+        .unwrap_or_default();
+    let Some(video_id) = preresolve_pick(next_id.as_deref(), last.as_deref()) else {
+        return;
+    };
+    if let Ok(mut g) = PRERESOLVED_LAST.lock() {
+        *g = Some(video_id.clone());
+    }
+    let _ = std::thread::Builder::new()
+        .name("online-preresolve".into())
+        .spawn(move || {
+            let _ = crate::online::resolve_stream(&video_id, Duration::from_secs(240));
+        });
+}
+
+#[cfg(test)]
+mod preresolve_tests {
+    use super::preresolve_pick;
+
+    #[test]
+    fn picks_online_upcoming_track() {
+        assert_eq!(
+            preresolve_pick(Some("yt:abc123"), None).as_deref(),
+            Some("abc123")
+        );
+    }
+
+    #[test]
+    fn skips_local_songs_and_empty() {
+        assert_eq!(preresolve_pick(Some("some-uuid"), None), None);
+        assert_eq!(preresolve_pick(Some("yt:"), None), None);
+        assert_eq!(preresolve_pick(None, None), None);
+    }
+
+    #[test]
+    fn single_flight_skips_repeat_of_last() {
+        assert_eq!(preresolve_pick(Some("yt:abc"), Some("abc")), None);
+        assert_eq!(
+            preresolve_pick(Some("yt:abc"), Some("other")).as_deref(),
+            Some("abc")
+        );
+    }
 }
 
 /// Track-mode normalization: gain = 10^((target_db − track_db) / 20),

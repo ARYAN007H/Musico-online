@@ -99,4 +99,31 @@ mod live_tests {
         assert!(items >= 10, "home returned only {items} items");
         println!("home: {} shelves, {items} items — first: {:?}", page.shelves.len(), page.shelves[0].title);
     }
+
+    /// C3.2 gate: advancing into an already-cached online track must take
+    /// < 1 s — the pre-resolve worker turns the advance into exactly this
+    /// cache hit.  Downloads one real track, then times the cache-hit path.
+    #[test]
+    #[ignore = "network + yt-dlp test — run with MUSICO_LIVE_TESTS=1"]
+    fn live_cached_resolve_under_a_second() {
+        let tracks = radio_tracks("dQw4w9WgXcQ").expect("radio tracks");
+        let vid = tracks
+            .iter()
+            .find(|t| !t.video_id.is_empty())
+            .expect("at least one related track")
+            .video_id
+            .clone();
+        let t0 = std::time::Instant::now();
+        resolve_stream(&vid, std::time::Duration::from_secs(240)).expect("first resolve");
+        let cold = t0.elapsed();
+        let t1 = std::time::Instant::now();
+        resolve_stream(&vid, std::time::Duration::from_secs(240)).expect("cached resolve");
+        let warm = t1.elapsed();
+        println!("cold resolve {cold:?}, cached {warm:?}");
+        assert!(
+            warm < std::time::Duration::from_secs(1),
+            "cached resolve took {warm:?} — C3.2 gate is < 1 s"
+        );
+        let _ = cold;
+    }
 }
