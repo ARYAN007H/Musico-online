@@ -40,6 +40,8 @@ pub use models::{BrowsePage, ItemKind, OnlineTrack, SearchResultPage, Shelf, She
 pub use radio::{radio_tracks, remember_radio_play};
 pub use search::search;
 pub use stream::{clear_cache, resolve_stream, to_song_info, yt_dlp_available};
+#[allow(unused_imports)]
+use stream::cached_file;
 
 #[cfg(test)]
 mod live_tests {
@@ -98,5 +100,39 @@ mod live_tests {
         let items: usize = page.shelves.iter().map(|s| s.items.len()).sum();
         assert!(items >= 10, "home returned only {items} items");
         println!("home: {} shelves, {items} items — first: {:?}", page.shelves.len(), page.shelves[0].title);
+    }
+
+    /// C3.2 gate: advancing into an already-cached online track must take
+    /// < 1 s — the pre-resolve worker turns the advance into exactly this
+    /// cache hit.  Downloads one real track, then times the cache-hit path.
+    #[test]
+    #[ignore = "network + yt-dlp test — run with MUSICO_LIVE_TESTS=1"]
+    fn live_cached_resolve_under_a_second() {
+        let tracks = radio_tracks("dQw4w9WgXcQ").expect("radio tracks");
+        // Duration-bounded pick: radio shuffles and can return multi-hour
+        // mixes — resolve a normal-length track or the gate hangs ~480 s.
+        let vid = tracks
+            .iter()
+            .find(|t| t.duration_secs.is_some_and(|d| (60..=600).contains(&d)))
+            .or_else(|| tracks.first())
+            .expect("at least one related track")
+            .video_id
+            .clone();
+        let t0 = std::time::Instant::now();
+        resolve_stream(&vid, std::time::Duration::from_secs(240)).expect("first resolve");
+        let cold = t0.elapsed();
+        let t1 = std::time::Instant::now();
+        resolve_stream(&vid, std::time::Duration::from_secs(240)).expect("cached resolve");
+        let warm = t1.elapsed();
+        println!("cold resolve {cold:?}, cached {warm:?}");
+        assert!(
+            warm < std::time::Duration::from_secs(1),
+            "cached resolve took {warm:?} — C3.2 gate is < 1 s"
+        );
+        // Leave no residue: the unit prune test assumes a clean cache dir.
+        let path = cached_file(&vid);
+        if let Some(p) = path {
+            let _ = std::fs::remove_file(p);
+        }
     }
 }

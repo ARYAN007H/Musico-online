@@ -27,7 +27,10 @@ const HOME_URL: &str = "https://music.youtube.com/";
 
 const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0";
 
-pub(crate) const HTTP_TIMEOUT: Duration = Duration::from_secs(12);
+/// Total request budget (connect + body read).  20 s because YouTube's
+/// `next` (radio) endpoint has been observed taking >12 s end-to-end under
+/// load — a timeout there must be headroom, not a hard failure.
+pub(crate) const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
 /// How often the live client version is re-fetched.
 const VERSION_TTL: Duration = Duration::from_secs(24 * 3600);
 
@@ -136,8 +139,16 @@ impl Transport for ReqwestTransport {
                 "YouTube Music returned HTTP {status}"
             )));
         }
-        resp.json()
-            .map_err(|e| TransportError::Fatal(format!("bad response body: {e}")))
+        resp.json().map_err(|e| {
+            // Timeouts AND reset connections mid-body surface as decode
+            // errors in blocking reqwest — both are transient (slow or
+            // interrupted endpoint), not fatal.
+            if e.is_timeout() || e.is_body() {
+                TransportError::Retryable(format!("response body interrupted: {e}"))
+            } else {
+                TransportError::Fatal(format!("bad response body: {e}"))
+            }
+        })
     }
 }
 
@@ -147,7 +158,8 @@ impl Transport for ReqwestTransport {
 ///
 /// The concurrency slot is held for the whole call **including backoff
 /// sleeps** — a failing endpoint keeps its slot so fresh traffic can't pile
-/// onto it; worst case a caller waits ~1 s for a slot (2 attempts × backoff).
+/// onto it; worst case a caller waits ~40 s for a slot (2 attempts × 20 s
+/// request budget, when both permits are pinned by a dead endpoint).
 pub(crate) fn post_via(
     transport: &dyn Transport,
     url: &str,
