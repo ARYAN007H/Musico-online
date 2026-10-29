@@ -74,6 +74,11 @@ impl PlaybackQueue {
         self.current_index = None;
     }
 
+    /// Clears only the upcoming songs; history (and thus Previous) survives.
+    pub fn clear_upcoming(&mut self) {
+        self.songs.clear();
+    }
+
     /// Returns a reference to the current queue contents.
     pub fn current_queue(&self) -> &VecDeque<SongInfo> {
         &self.songs
@@ -112,5 +117,80 @@ impl PlaybackQueue {
 impl Default for PlaybackQueue {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::SongInfo;
+
+    fn song(id: &str) -> SongInfo {
+        SongInfo {
+            id: id.into(),
+            file_path: format!("/tmp/{id}.mp3"),
+            title: id.into(),
+            artist: "Artist".into(),
+            album: "Album".into(),
+            duration_secs: 180.0,
+            cover_art: None,
+        }
+    }
+
+    #[test]
+    fn play_next_inserts_before_appended() {
+        let mut q = PlaybackQueue::new();
+        q.push_back(song("a"));
+        q.push_back(song("b"));
+        q.push_front(song("next"));
+        assert_eq!(q.current_queue()[0].id, "next", "push_front plays next");
+        assert_eq!(q.current_queue()[1].id, "a");
+        assert_eq!(q.len(), 3);
+    }
+
+    #[test]
+    fn next_pops_in_order_and_tracks_history() {
+        let mut q = PlaybackQueue::new();
+        q.push_back(song("a"));
+        q.push_front(song("next"));
+        assert_eq!(q.next().map(|s| s.id), Some("next".into()));
+        assert_eq!(q.next().map(|s| s.id), Some("a".into()));
+        assert_eq!(q.next().map(|s| s.id), None, "queue exhausted");
+        assert_eq!(q.previous().map(|s| s.id), Some("next".into()), "one step back");
+        assert_eq!(q.previous().map(|s| s.id), None, "history start");
+    }
+
+    #[test]
+    fn clear_upcoming_keeps_history() {
+        let mut q = PlaybackQueue::new();
+        q.push_back(song("a"));
+        q.push_back(song("b"));
+        assert_eq!(q.next().map(|s| s.id), Some("a".into()));
+        assert_eq!(q.next().map(|s| s.id), Some("b".into()));
+        q.push_back(song("c"));
+        q.clear_upcoming();
+        assert!(q.is_empty(), "upcoming dropped");
+        assert_eq!(q.previous().map(|s| s.id), Some("a".into()), "history kept");
+    }
+
+    #[test]
+    fn remove_at_deletes_exactly_one() {
+        let mut q = PlaybackQueue::new();
+        q.push_back(song("a"));
+        q.push_back(song("b"));
+        q.push_back(song("c"));
+        assert_eq!(q.remove_at(1).map(|s| s.id), Some("b".into()));
+        let ids: Vec<_> = q.current_queue().iter().map(|s| s.id.clone()).collect();
+        assert_eq!(ids, vec!["a".to_string(), "c".to_string()]);
+        assert_eq!(q.remove_at(9).map(|s| s.id), None, "out of range is a no-op");
+    }
+
+    #[test]
+    fn peek_next_does_not_consume() {
+        let mut q = PlaybackQueue::new();
+        q.push_back(song("a"));
+        assert_eq!(q.peek_next().map(|s| s.id), Some("a".into()));
+        assert_eq!(q.peek_next().map(|s| s.id), Some("a".into()));
+        assert_eq!(q.len(), 1);
     }
 }

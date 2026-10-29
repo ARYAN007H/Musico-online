@@ -162,6 +162,8 @@ fn main() {
             commands::online_genres,
             commands::online_play,
             commands::online_enqueue,
+            commands::online_play_next,
+            commands::online_start_radio,
             commands::online_available,
             commands::online_clear_cache,
             // Stats & playlists

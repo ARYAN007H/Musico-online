@@ -554,23 +554,7 @@ pub async fn online_play(
         serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
     );
 
-    let video_id = track.video_id.clone();
-    let file = tauri::async_runtime::spawn_blocking(move || {
-        crate::online::resolve_stream(&video_id, std::time::Duration::from_secs(240))
-    })
-    .await
-    .map_err(|e| format!("resolve task failed: {e}"))?;
-
-    let file = match file {
-        Ok(f) => f,
-        Err(e) => {
-            let _ = handle.emit(
-                "online-status",
-                serde_json::json!({ "stage": "error", "videoId": track.video_id, "message": e }),
-            );
-            return Err(e);
-        }
-    };
+    let file = resolve_online_track(&handle, &track).await?;
 
     let _ = handle.emit(
         "online-status",
@@ -581,7 +565,10 @@ pub async fn online_play(
     let eng = engine(&state)?;
     {
         let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-        q.push_back(song);
+        // Front, not back: "play this now" must survive concurrent enqueues
+        // (queue-all drains through a 3-wide pool for seconds) and play the
+        // clicked track, not whatever landed in the queue meanwhile.
+        q.push_front(song);
         let next_song = q.next().ok_or("Failed to enqueue song")?;
         drop(q);
         crate::event_bridge::play_and_track(&eng, &state, next_song)
@@ -590,6 +577,30 @@ pub async fn online_play(
     }
     emit_queue(&handle, &state);
     Ok(())
+}
+
+/// Resolve an online track to a local file, emitting `online-status`
+/// progress events. Shared by every online play/queue command.
+async fn resolve_online_track(
+    handle: &AppHandle,
+    track: &OnlineTrack,
+) -> Result<std::path::PathBuf, String> {
+    let video_id = track.video_id.clone();
+    let file = tauri::async_runtime::spawn_blocking(move || {
+        crate::online::resolve_stream(&video_id, std::time::Duration::from_secs(240))
+    })
+    .await
+    .map_err(|e| format!("resolve task failed: {e}"))?;
+    match file {
+        Ok(f) => Ok(f),
+        Err(e) => {
+            let _ = handle.emit(
+                "online-status",
+                serde_json::json!({ "stage": "error", "videoId": track.video_id, "message": e }),
+            );
+            Err(e)
+        }
+    }
 }
 
 /// Add an online track to the queue without playing it.  The stream is
@@ -606,23 +617,7 @@ pub async fn online_enqueue(
         serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
     );
 
-    let video_id = track.video_id.clone();
-    let file = tauri::async_runtime::spawn_blocking(move || {
-        crate::online::resolve_stream(&video_id, std::time::Duration::from_secs(240))
-    })
-    .await
-    .map_err(|e| format!("resolve task failed: {e}"))?;
-
-    let file = match file {
-        Ok(f) => f,
-        Err(e) => {
-            let _ = handle.emit(
-                "online-status",
-                serde_json::json!({ "stage": "error", "videoId": track.video_id, "message": e }),
-            );
-            return Err(e);
-        }
-    };
+    let file = resolve_online_track(&handle, &track).await?;
 
     let song = crate::online::to_song_info(&track, &file);
     state
@@ -632,6 +627,57 @@ pub async fn online_enqueue(
         .push_back(song);
     emit_queue(&handle, &state);
     Ok(())
+}
+
+/// Insert an online track at the front of the queue (Play Next).  Resolved
+/// first like online_enqueue so reaching it in the queue is instant.
+#[tauri::command]
+pub async fn online_play_next(
+    handle: AppHandle,
+    state: State<'_, AppState>,
+    track: OnlineTrack,
+) -> Result<(), String> {
+    let _ = handle.emit(
+        "online-status",
+        serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
+    );
+
+    let file = resolve_online_track(&handle, &track).await?;
+
+    let song = crate::online::to_song_info(&track, &file);
+    state
+        .queue
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .push_front(song);
+    let _ = handle.emit(
+        "online-status",
+        serde_json::json!({ "stage": "queued-next", "videoId": track.video_id, "title": track.title }),
+    );
+    emit_queue(&handle, &state);
+    Ok(())
+}
+
+/// Start a radio station from an online track: drops every upcoming song
+/// (history is kept, so Previous still works) and plays the track now.
+/// When it ends with the queue empty, the online-radio advance chains
+/// related tracks from it — that IS the station.
+#[tauri::command]
+pub async fn online_start_radio(
+    handle: AppHandle,
+    state: State<'_, AppState>,
+    track: OnlineTrack,
+) -> Result<(), String> {
+    state
+        .queue
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clear_upcoming();
+    let _ = handle.emit(
+        "online-status",
+        serde_json::json!({ "stage": "radio", "videoId": track.video_id, "title": track.title }),
+    );
+    online_play(handle, state, track).await
 }
 
 /// The home (Listen Now) feed: editorial + personalized shelves.

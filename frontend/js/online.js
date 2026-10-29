@@ -126,6 +126,7 @@ const Online = (() => {
     const badge = t.cached ? '<span class="browse-cached-badge" title="Already downloaded">cached</span>' : '';
     return `
       <div class="browse-row" role="button" tabindex="0" data-video-id="${escapeAttr(t.video_id)}" data-idx="${i}"
+           data-ctx="song" data-title="${escapeAttr(t.title)}" data-artist="${escapeAttr(t.artist || '')}"
            aria-label="Play ${escapeAttr(t.title)} by ${escapeAttr(t.artist)}">
         ${thumb}
         <div class="browse-meta">
@@ -367,8 +368,28 @@ const Online = (() => {
     });
   }
 
+  // ─── Context-menu actions (C3.1 play-from-anywhere) ─────────────────────────
+  async function playNext(track) {
+    if (!track) return;
+    const ok = await Bridge.invoke('online_play_next', { track });
+    if (ok !== null) {
+      trackMap.set(track.video_id, track);
+      App.showToast(`Playing \u201C${track.title}\u201D next\u2026`);
+    }
+  }
+
+  async function startRadio(track) {
+    if (!track) return;
+    const ok = await Bridge.invoke('online_start_radio', { track });
+    if (ok !== null) {
+      trackMap.set(track.video_id, track);
+      App.showToast(`Starting radio from \u201C${track.title}\u201D\u2026`);
+      App.navigateTo('now-playing');
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', init);
 
-  return { search, playTrack, enqueueTrack, toggleFullscreen, trackMap };
+  return { search, playTrack, enqueueTrack, playNext, startRadio, toggleFullscreen, trackMap };
 })();
 window.Online = Online;

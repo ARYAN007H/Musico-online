@@ -376,6 +376,45 @@
   .detail-art { width: 160px; height: 160px; }
 }
 
+/* ─── Context menu (C3.1 play-from-anywhere) ─────────────────────────────────── */
+.ctx-menu {
+  position: fixed;
+  z-index: var(--z-overlay);
+  min-width: 208px;
+  padding: var(--space-6) 0;
+  background: var(--surface-raised);
+  border: var(--border-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-card-hover), 0 12px 32px rgba(0, 0, 0, 0.18);
+  animation: ctx-in var(--duration-fast) var(--ease-out);
+}
+@keyframes ctx-in {
+  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+.ctx-item {
+  display: block;
+  width: 100%;
+  padding: var(--space-8) var(--space-16);
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-body);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.ctx-item:hover, .ctx-item:focus-visible {
+  background: var(--accent-tint);
+  color: var(--accent-text);
+  outline: none;
+}
+.ctx-sep {
+  height: 1px;
+  margin: var(--space-4) var(--space-8);
+  background: var(--divider);
+}
+
 /* ─── Browse genre grid ──────────────────────────────────────────────────────── */
 /* .detail-wrap already carries these exact rules above — don't re-list it here. */
 .genres-wrap { max-width: 860px; margin: 0 auto; padding: var(--space-24) var(--space-20) 140px; }
