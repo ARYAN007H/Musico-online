@@ -15,7 +15,7 @@
 
 /* ─── Glass tokens ───────────────────────────────────────────────────────────── */
 :root {
-  --glass-blur: 24px;
+  --glass-blur: 20px;
   --glass-sat: 180%;
 
   /* Regular material (legible) */
@@ -133,6 +133,7 @@ body { background: transparent !important; }
 #sidebar {
   margin: 10px 0 10px 10px;
   border: 1px solid var(--glass-border);
+  border-right: 1px solid var(--glass-border);
   border-radius: 26px;
   background: var(--glass-fill);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
@@ -141,7 +142,7 @@ body { background: transparent !important; }
     var(--glass-shadow),
     inset 0 1px 0 var(--glass-highlight);
 }
-#sidebar { border-right: 1px solid var(--glass-border); }
+
 
 /* Topbar: floating glass transport pill, detached from the window top. */
 #topbar-root {
@@ -192,8 +193,10 @@ body { background: transparent !important; }
     0 4px 14px var(--accent-shadow, rgba(124, 107, 196, 0.4));
 }
 
-/* Generic buttons and inputs pick up the material. */
-button[class*="btn"]:not(.lcd-btn):not(.shelf-play),
+/* Generic buttons and inputs pick up the material.  Accent CTAs (play
+   buttons) are EXCLUDED — the 0,3,1 generic rule would erase their accent
+   fill and leave white icons on white in light theme. */
+button[class*="btn"]:not(.lcd-btn):not(.shelf-play):not(.play-btn-main):not(.mini-btn):not(.lcd-play):not(.transport-btn):not(.action-btn):not(.view-toggle-btn),
 .s-action-btn, .home-retry, .batch-btn, .lib-tab, .sort-pill {
   background: var(--glass-clear);
   border: 1px solid var(--glass-border);
@@ -201,10 +204,31 @@ button[class*="btn"]:not(.lcd-btn):not(.shelf-play),
   transition: transform var(--duration-fast) var(--ease-out),
               background var(--duration-fast) var(--ease-out);
 }
-button[class*="btn"]:hover:not(.lcd-btn):not(.shelf-play),
+button[class*="btn"]:hover:not(.lcd-btn):not(.shelf-play):not(.play-btn-main):not(.mini-btn):not(.lcd-play):not(.transport-btn):not(.action-btn):not(.view-toggle-btn),
 .s-action-btn:hover, .home-retry:hover, .batch-btn:hover,
 .lib-tab:hover, .sort-pill:hover {
   background: var(--glass-fill-strong);
+}
+
+/* Accent CTAs: glass-edged accent gradient (main, mini and topbar play). */
+.play-btn-main, .mini-btn.play-btn, .lcd-play {
+  background: linear-gradient(180deg, var(--accent-secondary), var(--accent));
+  border: 1px solid var(--glass-border);
+  color: var(--on-accent, #fff);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 4px 14px var(--accent-shadow, rgba(124, 107, 196, 0.4));
+  transition: transform var(--duration-fast) var(--ease-spring),
+              filter var(--duration-fast) var(--ease-out);
+}
+.play-btn-main:hover, .mini-btn.play-btn:hover, .lcd-play:hover { filter: brightness(1.08); }
+.play-btn-main:active, .mini-btn.play-btn:active, .lcd-play:active { transform: scale(0.92); }
+
+/* Stateful buttons keep their pressed/active fills. */
+.transport-btn.active, .transport-btn:active, .action-btn:active,
+.mini-btn:active, .view-toggle-btn.active, .lcd-on {
+  background: var(--glass-fill-strong) !important;
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
 }
 .s-action-btn:active, .home-retry:active, .batch-btn:active { transform: scale(0.96); }
 
@@ -222,13 +246,16 @@ button[class*="btn"]:hover:not(.lcd-btn):not(.shelf-play),
   border-color: var(--accent-secondary);
 }
 
-/* Panels: queue panel and cards dock into glass. */
+/* Panels: queue panel docks into glass (16px blur — the blur budget is
+   finite on software GL). */
 .queue-panel {
   background: var(--glass-fill-strong);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter: blur(16px) saturate(var(--glass-sat));
+  backdrop-filter: blur(16px) saturate(var(--glass-sat));
   border-left: 1px solid var(--glass-border);
 }
+/* The topbar root already lenses — the inner .topbar blur is redundant. */
+.topbar-root .topbar { -webkit-backdrop-filter: none; backdrop-filter: none; }
 
 /* Sidebar selection: liquid accent capsule. */
 .side-nav .nav-item.active {
@@ -246,6 +273,13 @@ button[class*="btn"]:hover:not(.lcd-btn):not(.shelf-play),
   box-shadow: none;
 }
 .shelf-card, .lib-card { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: var(--radius-lg); }
+html:not([data-theme="dark"]) .shelf-card,
+[data-theme="light"] .shelf-card,
+html:not([data-theme="dark"]) .lib-card,
+[data-theme="light"] .lib-card {
+  background: rgba(0, 0, 0, 0.045);
+  border-color: rgba(0, 0, 0, 0.08);
+}
 .shelf-card .shelf-art, .lib-card-art { background-color: rgba(255, 255, 255, 0.06); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28); }
 .shelf-card:hover, .lib-card:hover { background: rgba(255, 255, 255, 0.35); }
 [data-theme="dark"] .shelf-card:hover,
