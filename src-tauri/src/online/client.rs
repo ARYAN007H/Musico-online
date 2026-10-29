@@ -140,10 +140,11 @@ impl Transport for ReqwestTransport {
             )));
         }
         resp.json().map_err(|e| {
-            // A timeout while reading the body surfaces as a decode error in
-            // blocking reqwest — it's transient (slow endpoint), not fatal.
-            if e.is_timeout() {
-                TransportError::Retryable(format!("response timed out mid-body: {e}"))
+            // Timeouts AND reset connections mid-body surface as decode
+            // errors in blocking reqwest — both are transient (slow or
+            // interrupted endpoint), not fatal.
+            if e.is_timeout() || e.is_body() {
+                TransportError::Retryable(format!("response body interrupted: {e}"))
             } else {
                 TransportError::Fatal(format!("bad response body: {e}"))
             }
@@ -157,7 +158,8 @@ impl Transport for ReqwestTransport {
 ///
 /// The concurrency slot is held for the whole call **including backoff
 /// sleeps** — a failing endpoint keeps its slot so fresh traffic can't pile
-/// onto it; worst case a caller waits ~1 s for a slot (2 attempts × backoff).
+/// onto it; worst case a caller waits ~40 s for a slot (2 attempts × 20 s
+/// request budget, when both permits are pinned by a dead endpoint).
 pub(crate) fn post_via(
     transport: &dyn Transport,
     url: &str,

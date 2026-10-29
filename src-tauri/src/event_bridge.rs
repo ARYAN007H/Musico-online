@@ -316,21 +316,39 @@ fn preresolve_next_online(state: &tauri::State<AppState>) {
         .unwrap_or_else(|e| e.into_inner())
         .peek_next()
         .map(|s| s.id);
-    let last = PRERESOLVED_LAST
-        .lock()
-        .map(|g| g.clone())
-        .unwrap_or_default();
-    let Some(video_id) = preresolve_pick(next_id.as_deref(), last.as_deref()) else {
-        return;
+    // One lock scope for check+set — airtight single-flight.
+    let video_id = {
+        let mut g = match PRERESOLVED_LAST.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        let picked = preresolve_pick(next_id.as_deref(), g.as_deref());
+        if let Some(v) = &picked {
+            *g = Some(v.clone());
+        }
+        picked
     };
-    if let Ok(mut g) = PRERESOLVED_LAST.lock() {
-        *g = Some(video_id.clone());
-    }
-    let _ = std::thread::Builder::new()
+    let Some(video_id) = video_id else { return };
+    let spawned = std::thread::Builder::new()
         .name("online-preresolve".into())
         .spawn(move || {
-            let _ = crate::online::resolve_stream(&video_id, Duration::from_secs(240));
+            if let Err(e) = crate::online::resolve_stream(&video_id, Duration::from_secs(240)) {
+                log::debug!("pre-resolve {video_id} failed: {e}");
+                // Let a later play start retry it while it's still queue-front.
+                if let Ok(mut g) = PRERESOLVED_LAST.lock() {
+                    if g.as_deref() == Some(&video_id) {
+                        *g = None;
+                    }
+                }
+            }
         });
+    if spawned.is_err() {
+        // Spawn failed: release the single-flight slot so the next start
+        // can retry this id.
+        if let Ok(mut g) = PRERESOLVED_LAST.lock() {
+            *g = None;
+        }
+    }
 }
 
 #[cfg(test)]
