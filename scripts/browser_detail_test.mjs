@@ -3,6 +3,20 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
+await page.addInitScript(() => {
+  window.__ipc = [];
+  const wrap = () => {
+    if (!window.Bridge || window.Bridge.__wrapped) return;
+    const orig = window.Bridge.invoke.bind(window.Bridge);
+    window.Bridge.invoke = (cmd, ...rest) => {
+      window.__ipc.push([cmd, rest[0]]);
+      return orig(cmd, ...rest);
+    };
+    window.Bridge.__wrapped = true;
+  };
+  const t = setInterval(wrap, 50);
+  setTimeout(() => clearInterval(t), 5000);
+});
 await page.goto('http://127.0.0.1:8143/index.html');
 await page.waitForTimeout(1000);
 const results = [];
@@ -60,6 +74,18 @@ check('forward restores detail view', await page.evaluate(() =>
 // 6. Embedded navigation: artist cards inside detail shelves also route (mock has none; verify card handler exists)
 check('enqueue buttons present on rows', await page.evaluate(() =>
   document.querySelectorAll('.dt-row .dt-enqueue').length >= 6));
+
+// C4.2: Download all kicks off a persistent batch.
+check('download-all button present', await page.evaluate(() =>
+  !!document.querySelector('.detail-downloadall')));
+await page.click('.detail-downloadall');
+await page.waitForTimeout(300);
+check('download all calls online_download_batch', await page.evaluate(() => {
+  const calls = window.__ipc.filter(([c]) => c === 'online_download_batch');
+  return calls.length === 1 &&
+    typeof calls[0][1]?.label === 'string' &&
+    Array.isArray(calls[0][1]?.tracks) && calls[0][1].tracks.length >= 1;
+}));
 
 console.log(results.join('\n'));
 console.log('JS errors:', errors.length ? errors : 'none');

@@ -64,6 +64,37 @@ fn main() {
                 .unwrap_or_else(|e| e.into_inner())
                 .online_cache_mb;
             crate::online::stream::set_cache_cap_override_mb(u64::from(saved_mb.unwrap_or(0)));
+            // Resume unfinished batch downloads (C4.2 persistence contract).
+            {
+                let state = app.state::<AppState>();
+                let resumed = state.recommender.as_ref().and_then(|r| r.lock().ok()).and_then(|rec| {
+                    match rec.batch_resume_pending() {
+                        Ok(ids) => {
+                            // Cloned inside — the guard can't outlive the lock.
+                            Some((ids, rec.store_handle(), state.batch_runners.clone()))
+                        }
+                        Err(e) => {
+                            log::warn!("batch resume failed: {e}");
+                            None
+                        }
+                    }
+                });
+                if let Some((ids, store, registry)) = resumed {
+                    // ONE worker, batches sequential: 5 unfinished batches
+                    // at boot must not mean 10 concurrent yt-dlps.
+                    let h = handle.clone();
+                    let _ = std::thread::Builder::new()
+                        .name("online-batch-resume".into())
+                        .spawn(move || {
+                            for id in ids {
+                                registry.lock().unwrap_or_else(|e| e.into_inner()).insert(id.clone());
+                                commands::run_batch_worker(
+                                    h.clone(), store.clone(), registry.clone(), id,
+                                );
+                            }
+                        });
+                }
+            }
             let engine = app.state::<AppState>().engine.clone();
             if let Some(engine) = engine {
                 event_bridge::spawn(engine, handle.clone());
@@ -174,6 +205,10 @@ fn main() {
             commands::online_play_next,
             commands::online_start_radio,
             commands::online_download,
+            commands::online_download_batch,
+            commands::online_batches,
+            commands::online_batch_retry,
+            commands::online_batch_cancel,
             commands::online_cache_usage,
             commands::set_online_cache_cap,
             commands::library_add,

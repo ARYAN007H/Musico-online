@@ -225,6 +225,13 @@ const Bridge = (() => {
         emit('download-state', { videoId: args?.track?.video_id || 'mock',
                                  title: args?.track?.title || 'Mock', stage: 'done' });
         return Promise.resolve(true);
+      case 'online_download_batch':
+        return Promise.resolve(`batch-${Date.now()}`);
+      case 'online_batches':
+        return Promise.resolve(window.__batchMock ? [window.__batchMock] : []);
+      case 'online_batch_retry':
+      case 'online_batch_cancel':
+        return Promise.resolve(true);
       case 'online_cache_usage':
         return Promise.resolve({ used_bytes: 314572800, cap_mb: 1024 });
       case 'set_online_cache_cap':

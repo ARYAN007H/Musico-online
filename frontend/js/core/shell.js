@@ -531,6 +531,23 @@ function DetailView() {
     window.App?.showToast?.(`Queued ${tracks.length} tracks — streams resolve in the background`);
   };
 
+  // C4.2: batch-download the whole tracklist (≤ 2 concurrent, resumable).
+  const downloadAll = () => {
+    if (!tracks.length) return;
+    window.Bridge?.invoke?.('online_download_batch', {
+      label: header.title || 'Download',
+      tracks: tracks.map((t) => ({
+        video_id: t.video_id, title: t.title, artist: t.subtitle,
+        album: '', duration_secs: null, thumbnail: null, cached: false,
+      })),
+    }).then((id) => {
+      if (id !== null) {
+        window.App?.showToast?.(`Downloading ${tracks.length} tracks — progress in Settings`);
+        invalidateLibraryLists();
+      }
+    });
+  };
+
   return html`
     <div class="detail">
       <div class="detail-hero">
@@ -549,6 +566,10 @@ function DetailView() {
               <button class="detail-queueall" onClick=${queueAll} aria-label="Queue all tracks">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
                 Queue all
+              </button>
+              <button class="detail-downloadall" onClick=${downloadAll} aria-label="Download all tracks">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                Download all
               </button>
             </div>` : null}
         </div>
@@ -1067,6 +1088,71 @@ function LibraryCatalog() {
     </div>`;
 }
 
+// ─── Batch downloads queue UI (C4.2, lives in Settings → storage card) ───────
+
+function BatchQueue() {
+  const batches = useStoreValue('batches', null);
+  let refreshTimer = null;
+  const refreshNow = () => {
+    window.Bridge?.invoke?.('online_batches').then((list) => {
+      Store.set('batches', Array.isArray(list) ? list : []);
+    });
+  };
+  // Trailing debounce: a 50-track album fires 50 progress events.
+  const refresh = () => {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(refreshNow, 250);
+  };
+
+  useEffect(() => {
+    refreshNow();
+    const onProgress = () => refresh();
+    // listen() returns the unlisten fn (Tauri: a Promise of one).
+    const un = window.Bridge?.listen?.('download-progress', onProgress);
+    return () => {
+      clearTimeout(refreshTimer);
+      Promise.resolve(un).then((f) => f?.());
+    };
+  }, []);
+
+  if (!batches || !batches.length) return null;
+  // The backend serializes raw BatchJobs — counts derive from track states.
+  const summarize = (b) => {
+    const done = b.tracks.filter((t) => t.state === 'done').length;
+    const failed = b.tracks.filter((t) => t.state.startsWith('failed:')).length;
+    const running = b.active && b.tracks.some((t) => t.state === 'pending');
+    return { done, failed, running };
+  };
+  return html`
+    <div class="batch-list">
+      ${batches.slice(0, 3).map((b) => {
+        const { done, failed, running } = summarize(b);
+        return html`
+        <div class="batch-row" key=${b.id}>
+          <div class="lib-meta">
+            <div class="lib-title">${b.label}</div>
+            <div class="lib-sub">${done} of ${b.tracks.length} downloaded
+              ${failed ? html` · <span class="batch-failed">${failed} failed</span>` : null}
+              ${running ? ' · downloading…' : ''}
+            </div>
+          </div>
+          <div class="batch-progress" aria-hidden="true">
+            <div class="batch-progress-fill" style=${{ width: `${b.tracks.length ? Math.round((100 * done) / b.tracks.length) : 0}%` }} />
+          </div>
+          ${failed ? html`
+            <button class="batch-btn" aria-label="Retry failed downloads"
+                    onClick=${() => { window.Bridge?.invoke?.('online_batch_retry', { id: b.id }); refresh(); }}>Retry</button>` : null}
+          ${running ? html`
+            <button class="batch-btn" aria-label="Cancel download"
+                    onClick=${() => { window.Bridge?.invoke?.('online_batch_cancel', { id: b.id }); refresh(); }}>Cancel</button>`
+            : b.tracks.some((t) => t.state === 'pending') ? html`
+            <button class="batch-btn" aria-label="Resume download"
+                    onClick=${() => { window.Bridge?.invoke?.('online_batch_retry', { id: b.id }); refresh(); }}>Resume</button>` : null}
+        </div>`;
+      })}
+    </div>`;
+}
+
 // ─── Mount ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1086,4 +1172,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (ctxRoot) render(html`<${ContextMenu} />`, ctxRoot);
   const libRoot = document.getElementById('library-catalog');
   if (libRoot) render(html`<${LibraryCatalog} />`, libRoot);
+  const batchRoot = document.getElementById('batch-root');
+  if (batchRoot) render(html`<${BatchQueue} />`, batchRoot);
 });

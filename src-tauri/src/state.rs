@@ -25,6 +25,10 @@ pub struct AppState {
     pub recommender: Option<Arc<Mutex<MusicRecommender>>>,
     /// True while a library scan is running (prevents concurrent scans).
     pub scanning: Arc<AtomicBool>,
+    /// Batch ids with a live worker thread (prevents double runners — two
+    /// run() loops racing record() would corrupt batch state).  Arc so the
+    /// worker thread can clear its own slot on exit.
+    pub batch_runners: Arc<Mutex<std::collections::HashSet<String>>>,
     /// Shared MPRIS metadata, filled by the event bridge once D-Bus is up.
     /// Unit type off Linux — MPRIS is a D-Bus interface and doesn't exist there.
     #[cfg(target_os = "linux")]
@@ -58,6 +62,7 @@ impl AppState {
             settings: Mutex::new(settings),
             recommender,
             scanning: Arc::new(AtomicBool::new(false)),
+            batch_runners: Arc::new(Mutex::new(std::collections::HashSet::new())),
             mpris_state: Mutex::new(None),
         }
     }
