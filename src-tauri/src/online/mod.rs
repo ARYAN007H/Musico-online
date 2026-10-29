@@ -67,6 +67,18 @@ mod live_tests {
         println!("radio: {} related tracks", radio.len());
     }
 
+    /// Live album detail page: header + playable tracklist (C2.2 path).
+    #[test]
+    #[ignore = "network test — run with MUSICO_LIVE_TESTS=1"]
+    fn live_album_detail() {
+        let page = browse("MPREb_bKCCaVsjXZ8", None).expect("album browse");
+        let hdr = page.header.expect("album header parses");
+        assert!(!hdr.title.is_empty());
+        let playable: usize = page.shelves.iter().map(|s| s.items.iter().filter(|i| i.video_id.is_some()).count()).sum();
+        assert!(playable >= 5, "album page returned {playable} playable tracks");
+        println!("album: {:?} | {} playable tracks | {} shelves", hdr.title, playable, page.shelves.len());
+    }
+
     /// Live home feed: the Listen Now shelves (editorial + personalized).
     #[test]
     #[ignore = "network test — run with MUSICO_LIVE_TESTS=1"]

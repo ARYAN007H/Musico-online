@@ -221,12 +221,33 @@ const Online = (() => {
     if (ok !== null) App.navigateTo('now-playing');
   }
 
-  async function enqueueTrack(track, btnEl) {
-    if (!track) return;
+  // Enqueue pool: at most 3 background resolves at once — Queue-all on a
+  // 50-track album must not spawn 50 concurrent yt-dlp processes.
+  const enqueueQueue = [];
+  let enqueueActive = 0;
+  const ENQUEUE_CAP = 3;
+
+  function pumpEnqueue() {
+    while (enqueueActive < ENQUEUE_CAP && enqueueQueue.length) {
+      const job = enqueueQueue.shift();
+      enqueueActive += 1;
+      job().finally(() => { enqueueActive -= 1; pumpEnqueue(); });
+    }
+  }
+
+  async function doEnqueue(track, btnEl) {
     if (btnEl) btnEl.classList.add('busy');
-    App.showToast(`Queueing “${track.title}”…`);
     await Bridge.invoke('online_enqueue', { track });
     if (btnEl) btnEl.classList.remove('busy');
+  }
+
+  function enqueueTrack(track, btnEl, { silent = false } = {}) {
+    if (!track) return Promise.resolve();
+    if (!silent) App.showToast(`Queueing “${track.title}”…`);
+    return new Promise((resolve) => {
+      enqueueQueue.push(() => doEnqueue(track, btnEl).then(resolve));
+      pumpEnqueue();
+    });
   }
 
   // ─── online-status events (resolving / playing / error) ─────────────────────

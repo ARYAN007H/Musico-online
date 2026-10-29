@@ -36,11 +36,12 @@ await page.evaluate(() => {
   const plCard = [...document.querySelectorAll('#home-root .shelf-card')][0]; // first shelf = playlists
   plCard.click();
 });
-await page.waitForTimeout(200);
-check('playlist card shows honest toast', await page.evaluate(() => {
-  const toast = document.getElementById('musico-toast');
-  return toast && toast.textContent.includes('next release');
-}));
+await page.waitForTimeout(300);
+check('playlist card navigates to detail (C2.2)', await page.evaluate(() =>
+  location.hash.startsWith('#/browse/')));
+// Return Home for the remaining assertions.
+await page.evaluate(() => { window.MusicoRouter.back(); });
+await page.waitForTimeout(300);
 
 // 3. Feed caches in store (no refetch on rerender)
 check('feed cached in store', await page.evaluate(() =>

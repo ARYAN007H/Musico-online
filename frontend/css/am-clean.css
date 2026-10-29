@@ -218,3 +218,160 @@
   color: var(--accent-text);
   background: var(--accent-tint-strong);
 }
+
+/* ─── Detail pages (album / playlist / artist) ───────────────────────────────── */
+.detail-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: var(--space-24) var(--space-20) 140px;
+}
+
+.detail-hero {
+  display: flex;
+  gap: var(--space-24);
+  align-items: flex-end;
+  margin-bottom: var(--space-24);
+}
+
+.detail-art {
+  width: 200px;
+  height: 200px;
+  border-radius: var(--radius-lg);
+  background-size: cover;
+  box-shadow: var(--elev-card-hover);
+  flex-shrink: 0;
+}
+
+.detail-head { flex: 1; min-width: 0; }
+
+.detail-kind {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--text-muted);
+}
+
+.detail-title {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.1;
+  margin: 6px 0 4px;
+  color: var(--text-primary);
+}
+
+.detail-sub { font-size: 14px; color: var(--text-secondary); }
+
+.detail-actions { display: flex; gap: 10px; margin-top: var(--space-16); }
+
+.detail-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--accent-text, #fff);
+  background: var(--accent, #9d8cff);
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+.detail-play:hover { filter: brightness(1.08); }
+.detail-play:active { transform: scale(0.97); }
+.detail-play svg { width: 15px; height: 15px; }
+
+.detail-queueall {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: var(--border-card);
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-secondary);
+  background: var(--surface-card);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.detail-queueall:hover { background: var(--accent-tint); color: var(--accent-text); }
+.detail-queueall svg { width: 14px; height: 14px; }
+
+/* Tracklist */
+.dt-list { margin-bottom: var(--space-24); }
+
+.dt-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-card);
+  cursor: pointer;
+  border-bottom: 1px solid var(--divider);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.dt-row:hover { background: var(--accent-tint); }
+.dt-row:hover .dt-enqueue { opacity: 1; }
+
+.dt-index {
+  width: 22px;
+  text-align: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.dt-art {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background-size: cover;
+  flex-shrink: 0;
+  box-shadow: var(--elev-card);
+}
+
+.dt-meta { flex: 1; min-width: 0; }
+.dt-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dt-sub {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.dt-enqueue {
+  border: none;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.dt-enqueue:hover { color: var(--accent-text); background: var(--accent-tint-strong); }
+.dt-enqueue svg { width: 13px; height: 13px; }
+@media (hover: none) { .dt-enqueue { opacity: 0.85; } }
+
+@media (max-width: 640px) {
+  .detail-hero { flex-direction: column; align-items: center; text-align: center; }
+  .detail-actions { justify-content: center; }
+  .detail-art { width: 160px; height: 160px; }
+}
