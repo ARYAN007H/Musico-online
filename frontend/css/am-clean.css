@@ -375,3 +375,54 @@
   .detail-actions { justify-content: center; }
   .detail-art { width: 160px; height: 160px; }
 }
+
+/* ─── Browse genre grid ──────────────────────────────────────────────────────── */
+.genres-wrap, .detail-wrap { max-width: 860px; margin: 0 auto; padding: var(--space-24) var(--space-20) 140px; }
+
+.genre-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-12);
+  margin-top: var(--space-20);
+}
+
+.genre-card {
+  position: relative;
+  aspect-ratio: 1.6;
+  border: var(--border-card);
+  border-radius: var(--radius-card);
+  background: linear-gradient(135deg, var(--accent-tint-strong), var(--surface-card));
+  cursor: pointer;
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: hidden;
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out);
+  box-shadow: var(--elev-card);
+}
+.genre-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elev-card-hover);
+}
+.genre-card::after {
+  content: '';
+  position: absolute;
+  right: -22px;
+  bottom: -22px;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--accent-glow);
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+.genre-card:hover::after { transform: scale(1.25); }
+
+.genre-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: left;
+  z-index: 1;
+}

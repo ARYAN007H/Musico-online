@@ -10,7 +10,8 @@ use std::time::{Duration, Instant};
 
 use super::client::{innertube_context, innertube_post, BROWSE_URL};
 use super::models::BrowsePage;
-use super::parse::parse_browse_page;
+use super::parse::{parse_browse_page, parse_genre_page};
+use super::models::ShelfItem;
 
 /// Browse pages stay fresh for this long.
 const BROWSE_TTL: Duration = Duration::from_secs(300);
@@ -55,6 +56,33 @@ pub fn browse(browse_id: &str, params: Option<&str>) -> Result<BrowsePage, Strin
 /// Music — our server-side recommendation layer.
 pub fn home_feed() -> Result<BrowsePage, String> {
     browse("FEmusic_home", None)
+}
+
+/// The mood/genre category grid (Browse tab): ~50 category cards, each
+/// carrying the browseId+params of a shelf page the generic parser handles.
+pub fn genres() -> Result<Vec<ShelfItem>, String> {
+    let key = ("FEmusic_moods_and_genres".to_string(), "".to_string());
+    if let Some(page) = cache_get(&key) {
+        let items = genre_items_from_page(&page);
+        if !items.is_empty() {
+            return Ok(items);
+        }
+    }
+    let mut body = serde_json::json!({ "context": super::client::innertube_context() });
+    body["browseId"] = serde_json::Value::String("FEmusic_moods_and_genres".into());
+    let json = super::client::innertube_post(super::client::BROWSE_URL, body)?;
+    let items = parse_genre_page(&json);
+    if items.is_empty() {
+        log::warn!("InnerTube genres parsed 0 categories — API shape may have changed");
+        return Ok(items);
+    }
+    cache_put(key, &parse_browse_page(&json));
+    Ok(items)
+}
+
+fn genre_items_from_page(page: &BrowsePage) -> Vec<super::models::ShelfItem> {
+    let _ = page;
+    Vec::new() // genre pages carry nav buttons, not shelves — cache miss re-fetches
 }
 
 static BROWSE_CACHE: LazyLock<Mutex<HashMap<(String, String), (Instant, BrowsePage)>>> =

@@ -27,7 +27,7 @@ const NAV_GROUPS = [
     items: [
       { view: 'browse', label: 'Home', icon: 'globe' },
       { view: 'now-playing', label: 'Now Playing', icon: 'disc' },
-      { view: 'radio', label: 'Radio', icon: 'radio', soon: true },
+      { view: 'genres', label: 'Browse', icon: 'grid' },
     ],
   },
   {
@@ -43,6 +43,7 @@ const NAV_GROUPS = [
 const ICONS = {
   globe: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>`,
   disc: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3"/></svg>`,
+  grid: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`,
   radio: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49M7.76 16.24a6 6 0 010-8.49M19.07 4.93a10 10 0 010 14.14M4.93 19.07a10 10 0 010-14.14"/></svg>`,
   books: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>`,
   list: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>`,
@@ -553,6 +554,52 @@ function DetailView() {
     </div>`;
 }
 
+// ─── Browse (mood/genre grid) ─────────────────────────────────────────────────
+
+async function loadGenres() {
+  Store.set('genresLoading', true);
+  try {
+    const items = await Bridge0().invoke('online_genres');
+    Store.set('genres', items || []);
+    Store.set('genresError', items ? null : 'Couldn\u2019t load categories.');
+  } catch (e) {
+    Store.set('genresError', String(e));
+  }
+  Store.set('genresLoading', false);
+}
+
+function GenresView() {
+  const genres = useStoreValue('genres', null);
+  const loading = useStoreValue('genresLoading', false);
+  const error = useStoreValue('genresError', null);
+
+  useEffect(() => { if (!genres) loadGenres(); }, []);
+
+  const open = (item) => Router.navigate(Router.detailRoute({
+    browseId: item.browse_id, params: item.params || null, title: item.title,
+  }));
+
+  return html`
+    <div class="genres">
+      <header class="browse-header">
+        <h1 class="browse-title">Browse</h1>
+        <p class="browse-sub">Moods & genres — editorial radio for every moment.</p>
+      </header>
+      ${loading && !genres ? html`<div class="home-status">Loading categories…</div>` : null}
+      ${error ? html`<div class="home-status">
+        Couldn't load categories — ${error}
+        <button class="home-retry" onClick=${loadGenres}>Retry</button>
+      </div>` : null}
+      <div class="genre-grid">
+        ${(genres || []).map((g, i) => html`
+          <button class="genre-card" key=${g.browse_id + i}
+                  onClick=${() => open(g)} aria-label="Browse ${g.title}">
+            <span class="genre-name">${g.title}</span>
+          </button>`)}
+      </div>
+    </div>`;
+}
+
 // ─── Mount ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -561,9 +608,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const panelRoot = document.getElementById('panel-root');
   const homeRoot = document.getElementById('home-root');
   const detailRoot = document.getElementById('detail-root');
+  const genresRoot = document.getElementById('genres-root');
   if (sidebarRoot) render(html`<${Sidebar} />`, sidebarRoot);
   if (topbarRoot) render(html`<${TopBar} />`, topbarRoot);
   if (panelRoot) render(html`<${QueuePanel} />`, panelRoot);
   if (homeRoot) render(html`<${HomeFeed} />`, homeRoot);
   if (detailRoot) render(html`<${DetailView} />`, detailRoot);
+  if (genresRoot) render(html`<${GenresView} />`, genresRoot);
 });
