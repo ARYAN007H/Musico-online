@@ -25,4 +25,12 @@ pub enum RecommenderError {
     /// meaningful recommendations.
     #[error("Insufficient library: need at least 3 indexed songs")]
     InsufficientLibrary,
+
+    /// A caller passed an invalid argument (bad kind, empty id, ...).
+    #[error("Invalid input: {0}")]
+    Invalid(String),
+
+    /// Bincode (de)serialization failure.
+    #[error("Serialization error: {0}")]
+    Serialization(String),
 }
