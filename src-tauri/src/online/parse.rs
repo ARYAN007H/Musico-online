@@ -1280,7 +1280,7 @@ mod browse_tests {
         assert_eq!(items[0].params.as_deref(), Some("ggSUChAK"));
     }
 
-#[test]
+    #[test]
     fn parses_album_header_and_playable_tracks() {
         // Fixture generated from the live album page captured 2026-10-29
         // (musicResponsiveHeaderRenderer + playlistItemData tracklist).

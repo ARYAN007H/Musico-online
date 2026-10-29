@@ -556,42 +556,64 @@ function DetailView() {
 
 // ─── Browse (mood/genre grid) ─────────────────────────────────────────────────
 
+let genresSeq = 0;
+
 async function loadGenres() {
+  const seq = ++genresSeq;
   Store.set('genresLoading', true);
   try {
     const items = await Bridge0().invoke('online_genres');
-    Store.set('genres', items || []);
-    Store.set('genresError', items ? null : 'Couldn\u2019t load categories.');
+    if (seq !== genresSeq) return; // superseded by a newer load
+    // Bridge.invoke swallows IPC rejections (resolves null), and the backend
+    // never caches an empty parse — null/[] is a failure, never a result.
+    if (!items || items.length === 0) {
+      if (!(Store.get('genres') || []).length) {
+        Store.set('genresError', 'Couldn\u2019t load categories.');
+      }
+    } else {
+      Store.set('genres', items);
+      Store.set('genresError', null);
+    }
   } catch (e) {
-    Store.set('genresError', String(e));
+    if (seq !== genresSeq) return;
+    if (!(Store.get('genres') || []).length) Store.set('genresError', String(e));
   }
-  Store.set('genresLoading', false);
+  if (seq === genresSeq) Store.set('genresLoading', false);
 }
 
 function GenresView() {
   const genres = useStoreValue('genres', null);
   const loading = useStoreValue('genresLoading', false);
   const error = useStoreValue('genresError', null);
+  const activeNav = useStoreValue('activeNav', null);
 
-  useEffect(() => { if (!genres) loadGenres(); }, []);
+  // Fetch on first activation of the Browse tab — not at app boot, so users
+  // who never open Browse never pay the InnerTube round-trip.
+  useEffect(() => {
+    if (activeNav === 'genres' && !(genres && genres.length) && !loading) loadGenres();
+  }, [activeNav]);
 
   const open = (item) => Router.navigate(Router.detailRoute({
     browseId: item.browse_id, params: item.params || null, title: item.title,
   }));
 
+  if (error && !(genres && genres.length)) {
+    return html`<div class="home-status">
+      Couldn't load categories — ${error}
+      <button class="home-retry" onClick=${loadGenres}>Retry</button>
+    </div>`;
+  }
+  if (!(genres && genres.length)) {
+    return html`<div class="home-status">${loading ? 'Loading categories…' : ''}</div>`;
+  }
   return html`
     <div class="genres">
       <header class="browse-header">
         <h1 class="browse-title">Browse</h1>
         <p class="browse-sub">Moods & genres — editorial radio for every moment.</p>
       </header>
-      ${loading && !genres ? html`<div class="home-status">Loading categories…</div>` : null}
-      ${error ? html`<div class="home-status">
-        Couldn't load categories — ${error}
-        <button class="home-retry" onClick=${loadGenres}>Retry</button>
-      </div>` : null}
       <div class="genre-grid">
-        ${(genres || []).map((g, i) => html`
+        ${genres.map((g, i) => html`
           <button class="genre-card" key=${g.browse_id + i}
                   onClick=${() => open(g)} aria-label="Browse ${g.title}">
             <span class="genre-name">${g.title}</span>

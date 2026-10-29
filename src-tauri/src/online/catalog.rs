@@ -9,9 +9,8 @@ use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 use super::client::{innertube_context, innertube_post, BROWSE_URL};
-use super::models::BrowsePage;
+use super::models::{BrowsePage, ShelfItem};
 use super::parse::{parse_browse_page, parse_genre_page};
-use super::models::ShelfItem;
 
 /// Browse pages stay fresh for this long.
 const BROWSE_TTL: Duration = Duration::from_secs(300);
@@ -66,9 +65,9 @@ pub fn genres() -> Result<Vec<ShelfItem>, String> {
     if let Some(items) = genres_cache_get() {
         return Ok(items);
     }
-    let mut body = serde_json::json!({ "context": super::client::innertube_context() });
+    let mut body = serde_json::json!({ "context": innertube_context() });
     body["browseId"] = serde_json::Value::String("FEmusic_moods_and_genres".into());
-    let json = super::client::innertube_post(super::client::BROWSE_URL, body)?;
+    let json = innertube_post(BROWSE_URL, body)?;
     let items = parse_genre_page(&json);
     if items.is_empty() {
         // Don't cache an empty parse: shape drift or a transient failure must

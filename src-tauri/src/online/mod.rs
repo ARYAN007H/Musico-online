@@ -84,7 +84,7 @@ mod live_tests {
     #[ignore = "network test — run with MUSICO_LIVE_TESTS=1"]
     fn live_genres() {
         let items = genres().expect("genres");
-        assert!(items.len() >= 40, "genres returned {} categories", items.len());
+        assert!(items.len() >= 50, "genres returned {} categories (ROADMAP C2.4 gate)", items.len());
         assert!(items.iter().all(|i| i.browse_id.is_some() && !i.title.is_empty()));
         println!("genres: {} categories — first: {:?}", items.len(), items[0].title);
     }
