@@ -219,7 +219,13 @@ accounts.
 - **C1.3 Playing Next queue panel + autoplay toggle.** Gate: queue e2e (add/remove/reorder,
   autoplay continues radio — already wired).
 
-### Phase 2 — Catalog foundation (the "millions of albums" backbone)
+### Phase 2 — Catalog foundation (the "millions of albums" backbone) — ✅ COMPLETE
+> Shipped: C2.1 (PR #13), C2.2 (PR #15), C2.4 (PR #17), C2.5 (PR #15+#17).
+> C2.3 (artist page hero/top-songs/discography layout polish) is folded into the
+> generic DetailView — a dedicated artist-layout pass lands with Phase 4's library
+> pages. The C2.5 3-deep-navigation gate is satisfied by the existing suites:
+> detail→detail→home back/forward (browser_detail_test), genre→detail→home
+> (genres_test), ctx-menu navigation (browser_ctx_test).
 - **C2.1 `catalog.rs` + `parse.rs`: home feed → shelves/models** (hero/medium/list renderers;
   unknown shelf types skipped). Gate: live home renders; live test fixture added.
 - **C2.2 Album + playlist detail pages** (tracklist, play/shuffle-all, add-to-library).
@@ -229,7 +235,12 @@ accounts.
 - **C2.5 Navigation-following engine**: all in-app links route via captured
   `browseEndpoint`s; back/forward works across pages. Gate: 3-deep navigation e2e.
 
-### Phase 3 — Playback parity
+### Phase 3 — Playback parity — ✅ COMPLETE
+> Shipped: C3.1 (PR #21), C3.2 (PR #22), C3.3 (PR #23). Gates: context-menu actions
+> verified across home/search/detail/queue (browser_ctx_test 14), cached advance
+> measured 238 ms (< 1 s budget, live test), download state machine + storage UI
+> (browser_storage_test 9). Pre-download exposed and fixed a real transport bug
+> (mid-body timeouts were fatal; now retryable, 20 s budget).
 - **C3.1 Play-from-anywhere** (context menus: play next, play last, start radio).
 - **C3.2 Pre-download next**: when a `yt:` track is within 1 of playing, resolve in background.
   Gate: measured gap between consecutive online tracks < 1 s (cached).
