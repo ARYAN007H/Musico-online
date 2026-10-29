@@ -28,6 +28,7 @@ const Bridge = (() => {
 
   let onError = null;
 
+  const libStore = {};
   async function invoke(cmd, args = {}) {
     if (isTauri) {
       try {
@@ -188,6 +189,24 @@ const Bridge = (() => {
           .map((t, i) => ({ kind: 'unknown', title: t, subtitle: '', thumbnail: null,
                             video_id: null, browse_id: 'FEmusic_moods_and_genres_category',
                             params: 'mock' + i, playlist_id: null })));
+      case 'library_list':
+        return Promise.resolve((libStore[args?.kind] || []).slice());
+      case 'library_add':
+        if (args?.entry) {
+          const e = args.entry;
+          e.added_at = Date.now();
+          (libStore[e.kind] = libStore[e.kind] || []).unshift(e);
+        }
+        return Promise.resolve(true);
+      case 'library_remove': {
+        const list = libStore[args?.kind] || [];
+        const i = list.findIndex((e) => e.id === args?.id);
+        if (i >= 0) list.splice(i, 1);
+        return Promise.resolve(true);
+      }
+      case 'library_contains':
+        return Promise.resolve((args?.ids || []).filter((id) =>
+          (libStore[args?.kind] || []).some((e) => e.id === id)));
       case 'online_play_next':
       case 'online_start_radio':
         return Promise.resolve(true);
