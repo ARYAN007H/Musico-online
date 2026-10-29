@@ -680,6 +680,63 @@ pub async fn online_start_radio(
     online_play(handle, state, track).await
 }
 
+/// Explicitly download an online track (cache fill without touching the
+/// queue).  State machine `resolving → done | failed` is tracked by
+/// online::download and mirrored to the frontend via `download-state`
+/// events.  Retrying a failure = invoking this again.
+#[tauri::command]
+pub async fn online_download(handle: AppHandle, track: OnlineTrack) -> Result<(), String> {
+    crate::online::download::start(&track.video_id, &track.title);
+    let _ = handle.emit(
+        "download-state",
+        serde_json::json!({ "videoId": track.video_id, "stage": "resolving", "title": track.title }),
+    );
+
+    let result = match resolve_online_track(&handle, &track).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
+    };
+
+    crate::online::download::finish(&track.video_id, result.clone());
+    let (stage, message) = match &result {
+        Ok(()) => ("done", serde_json::Value::Null),
+        Err(e) => ("failed", serde_json::json!(e)),
+    };
+    let _ = handle.emit(
+        "download-state",
+        serde_json::json!({ "videoId": track.video_id, "stage": stage, "title": track.title, "message": message }),
+    );
+    result
+}
+
+/// Stream-cache usage + the effective cap (MB) for the storage settings UI.
+#[tauri::command]
+pub fn online_cache_usage() -> serde_json::Value {
+    let used = crate::online::stream::cache_usage_bytes();
+    let cap_mb = crate::online::stream::effective_cap_mb();
+    serde_json::json!({ "used_bytes": used, "cap_mb": cap_mb })
+}
+
+/// Persists the storage-slider cap (MB), applies it immediately (LRU-prune)
+/// and reports the post-prune usage.  `None` resets to the built-in default.
+#[tauri::command]
+pub fn set_online_cache_cap(
+    state: State<'_, AppState>,
+    mb: Option<u32>,
+) -> Result<serde_json::Value, String> {
+    let mut settings = {
+        let mut s = state.settings.lock().unwrap_or_else(|e| e.into_inner());
+        s.online_cache_mb = mb;
+        s.clone()
+    };
+    settings.save()?;
+    let mb64 = u64::from(mb.unwrap_or(0));
+    crate::online::stream::set_cache_cap_override_mb(mb64);
+    crate::online::prune_cache_to_cap();
+    let used = crate::online::stream::cache_usage_bytes();
+    Ok(serde_json::json!({ "used_bytes": used, "cap_mb": mb.unwrap_or(1024) }))
+}
+
 /// The home (Listen Now) feed: editorial + personalized shelves.
 #[tauri::command]
 pub async fn online_home() -> Result<crate::online::BrowsePage, String> {

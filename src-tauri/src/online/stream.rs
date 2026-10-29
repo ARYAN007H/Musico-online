@@ -19,6 +19,58 @@ const CACHE_PRUNE_TARGET: f64 = 0.8;
 /// A downloaded file smaller than this is considered broken.
 const MIN_FILE_BYTES: u64 = 10 * 1024;
 
+/// Runtime cap override set from the storage settings UI (MB).  Precedence
+/// in [`cap_from`]: `MUSICO_ONLINE_CACHE_MB` env > this override > default.
+static CAP_OVERRIDE_MB: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Sets the runtime cache cap in MB (0 = back to default).
+pub fn set_cache_cap_override_mb(mb: u64) {
+    CAP_OVERRIDE_MB.store(mb, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Pure cap precedence — env wins over the settings override, default last.
+fn cap_from(env_mb: Option<u64>, override_mb: u64) -> u64 {
+    let mb = env_mb.unwrap_or(if override_mb == 0 { CACHE_MAX_BYTES / (1024 * 1024) } else { override_mb });
+    mb.max(64) * 1024 * 1024
+}
+
+/// The effective cap in MB (what the storage UI shows as the ceiling).
+pub fn effective_cap_mb() -> u64 {
+    cache_cap_bytes() / (1024 * 1024)
+}
+
+/// Prunes the stream cache to the currently effective cap.
+pub fn prune_cache_to_cap() -> u64 {
+    prune_cache(cache_cap_bytes())
+}
+
+/// Cache cap — `MUSICO_ONLINE_CACHE_MB` env override (for tests / small disks)
+/// beats the storage-settings slider; both beat the 1 GB default.
+fn cache_cap_bytes() -> u64 {
+    cap_from(
+        std::env::var("MUSICO_ONLINE_CACHE_MB").ok().and_then(|v| v.parse::<u64>().ok()),
+        CAP_OVERRIDE_MB.load(std::sync::atomic::Ordering::Relaxed),
+    )
+}
+
+/// Total bytes of completed downloads in the stream cache (partial files
+/// and yt-dlp sidecars excluded).
+pub fn cache_usage_bytes() -> u64 {
+    let dir = cache_dir();
+    let Ok(entries) = std::fs::read_dir(&dir) else { return 0 };
+    entries
+        .flatten()
+        .filter(|e| {
+            let n = e.file_name();
+            let n = n.to_string_lossy();
+            !n.ends_with(".part") && !n.ends_with(".ytdl")
+        })
+        .filter_map(|e| e.metadata().ok())
+        .filter(|m| m.is_file())
+        .map(|m| m.len())
+        .sum()
+}
+
 /// Disk cache for downloaded streams: ~/.cache/musico-online/online/{videoId}.*
 pub fn cache_dir() -> PathBuf {
     dirs::cache_dir()
@@ -161,15 +213,6 @@ fn run_yt_dlp(url: &str, template: &Path, timeout: Duration) -> Result<(), Strin
     Ok(())
 }
 
-/// Cache cap — `MUSICO_ONLINE_CACHE_MB` env override (for tests / small disks).
-fn cache_cap_bytes() -> u64 {
-    std::env::var("MUSICO_ONLINE_CACHE_MB")
-        .ok()
-        .and_then(|v| v.parse::<u64>().ok())
-        .map(|mb| mb * 1024 * 1024)
-        .unwrap_or(CACHE_MAX_BYTES)
-}
-
 /// LRU-prunes the stream cache to the cap by mtime (oldest first), keeping
 /// everything above the hysteresis target.  Returns bytes freed.
 pub fn prune_cache(max_bytes: u64) -> u64 {
@@ -301,6 +344,29 @@ pub fn to_song_info(track: &OnlineTrack, file_path: &Path) -> SongInfo {
         album: track.album.clone(),
         duration_secs: duration,
         cover_art: None,
+    }
+}
+
+#[cfg(test)]
+mod cap_tests {
+    use super::cap_from;
+    const GB_MB: u64 = 1024;
+
+    #[test]
+    fn env_wins_over_override_and_default() {
+        assert_eq!(cap_from(Some(256), 4096), 256 * 1024 * 1024);
+    }
+
+    #[test]
+    fn override_wins_over_default() {
+        assert_eq!(cap_from(None, 512), 512 * 1024 * 1024);
+        assert_eq!(cap_from(None, 0), GB_MB * 1024 * 1024, "0 = built-in default");
+    }
+
+    #[test]
+    fn floor_is_64_mb() {
+        assert_eq!(cap_from(Some(1), 0), 64 * 1024 * 1024);
+        assert_eq!(cap_from(None, 1), 64 * 1024 * 1024);
     }
 }
 

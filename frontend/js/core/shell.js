@@ -658,6 +658,7 @@ function ctxItemsFor(el) {
       { label: 'Play', action: () => Online.playTrack?.(track, null) },
       { label: 'Play Next', action: () => Online.playNext?.(track) },
       { label: 'Play Last', action: () => Online.enqueueTrack?.(track) },
+      { label: 'Download', action: () => Online.downloadTrack?.(track) },
       { sep: true },
       { label: 'Start Radio', action: () => Online.startRadio?.(track) },
     ];

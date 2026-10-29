@@ -251,6 +251,34 @@ const Online = (() => {
     });
   }
 
+  // ─── Explicit downloads (C3.3) ───────────────────────────────────────────────
+  async function downloadTrack(track) {
+    if (!track) return;
+    markRow(track.video_id, 'dl-busy');
+    const ok = await Bridge.invoke('online_download', { track });
+    if (ok !== null) trackMap.set(track.video_id, track);
+    return ok;
+  }
+
+  // Row badges for in-flight downloads (browse rows carry data-video-id).
+  function markRow(videoId, cls, on = true) {
+    document.querySelectorAll(`[data-video-id="${videoId}"]`).forEach((row) => {
+      row.classList.toggle(cls, on);
+      if (cls === 'dl-busy' && !on) row.classList.add('dl-done');
+    });
+  }
+
+  Bridge.listen('download-state', (e) => {
+    const p = e.payload ?? e;
+    if (p.stage === 'done') {
+      markRow(p.videoId, 'dl-busy', false);
+      App.showToast(`Downloaded \u201C${p.title}\u201D`);
+    } else if (p.stage === 'failed') {
+      markRow(p.videoId, 'dl-busy', false);
+      App.showToast(`Download failed: ${p.message || p.title || 'unknown error'}`);
+    }
+  });
+
   // ─── online-status events (resolving / playing / error) ─────────────────────
   Bridge.listen('online-status', (e) => {
     const p = e.payload ?? e;
@@ -390,6 +418,6 @@ const Online = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { search, playTrack, enqueueTrack, playNext, startRadio, toggleFullscreen, trackMap };
+  return { search, playTrack, enqueueTrack, playNext, startRadio, downloadTrack, toggleFullscreen, trackMap };
 })();
 window.Online = Online;

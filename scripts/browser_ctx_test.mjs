@@ -38,10 +38,10 @@ check('song cards carry context data', await page.evaluate(
     !!document.querySelector(sel).dataset.videoId, songSel));
 await ctxClick(songSel);
 await page.waitForTimeout(150);
-check('song menu opens with 4 items', await page.evaluate(() => {
+check('song menu opens with 5 items', await page.evaluate(() => {
   const items = [...document.querySelectorAll('.ctx-menu .ctx-item')];
-  return items.length === 4 &&
-    items.map((i) => i.textContent).join('|') === 'Play|Play Next|Play Last|Start Radio';
+  return items.length === 5 &&
+    items.map((i) => i.textContent).join('|') === 'Play|Play Next|Play Last|Download|Start Radio';
 }));
 
 // 2. Play Next routes through online_play_next and closes the menu.
@@ -74,6 +74,15 @@ await page.keyboard.press('Escape');
 await page.waitForTimeout(150);
 check('Escape closes the menu', await page.evaluate(
   () => !document.querySelector('.ctx-menu')));
+
+// 5b. Download routes through online_download and flips the row badge.
+await ctxClick(songSel);
+await page.waitForTimeout(150);
+await page.click('.ctx-menu .ctx-item >> text=Download');
+await page.waitForTimeout(300);
+check('Download calls online_download', (await ipcCalls('online_download')).length === 1);
+check('downloaded row gets dl-done badge', await page.evaluate(() =>
+  !!document.querySelector('.dl-done')));
 
 // 6. Album/artist cards get an Open-only menu that navigates.
 await page.evaluate(() => window.MusicoRouter.navigate('browse'));
