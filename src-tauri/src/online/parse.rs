@@ -573,6 +573,44 @@ fn parse_header(json: &serde_json::Value) -> Option<HeaderMeta> {
     None
 }
 
+/// Parses the mood/genre landing page: `musicNavigationButtonRenderer`
+/// items are category cards (title + browseId + params), not shelf content —
+/// they need their own pass.
+pub(crate) fn parse_genre_page(json: &serde_json::Value) -> Vec<ShelfItem> {
+    let mut buttons = Vec::new();
+    collect_values(json, "musicNavigationButtonRenderer", &mut buttons);
+    let mut out = Vec::new();
+    for b in buttons {
+        let title = b
+            .pointer("/buttonText/runs/0/text")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let browse_id = b
+            .pointer("/clickCommand/browseEndpoint/browseId")
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+        let params = b
+            .pointer("/clickCommand/browseEndpoint/params")
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+        if title.is_empty() || browse_id.is_none() {
+            continue;
+        }
+        out.push(ShelfItem {
+            kind: crate::online::models::ItemKind::Unknown,
+            title,
+            subtitle: String::new(),
+            thumbnail: None,
+            video_id: None,
+            browse_id,
+            params,
+            playlist_id: None,
+        });
+    }
+    out
+}
+
 /// Collects every shelf container in document order.  Does NOT recurse into
 /// a matched container (nested shelves would duplicate as separate sections).
 fn collect_shelves_in_order<'a>(node: &'a serde_json::Value, out: &mut Vec<&'a serde_json::Value>) {
@@ -1167,6 +1205,79 @@ mod browse_tests {
         assert_eq!(page.shelves.len(), 1);
         assert_eq!(page.shelves[0].items[0].kind, crate::online::models::ItemKind::Song);
         assert!(page.shelves[0].items[0].to_track().is_some());
+    }
+
+    #[test]
+    fn parses_genre_category_buttons() {
+        let json: serde_json::Value = serde_json::from_str(r#"{
+ "contents": {
+  "singleColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "musicNavigationButtonRenderer": {
+           "buttonText": {
+            "runs": [
+             {
+              "text": "Chill"
+             }
+            ]
+           },
+           "clickCommand": {
+            "browseEndpoint": {
+             "browseId": "FEmusic_moods_and_genres_category",
+             "params": "ggSUChAK"
+            }
+           }
+          }
+         },
+         {
+          "musicNavigationButtonRenderer": {
+           "buttonText": {
+            "runs": [
+             {
+              "text": "Workout"
+             }
+            ]
+           },
+           "clickCommand": {
+            "browseEndpoint": {
+             "browseId": "FEmusic_moods_and_genres_category",
+             "params": "ggUQChB"
+            }
+           }
+          }
+         },
+         {
+          "musicNavigationButtonRenderer": {
+           "buttonText": {
+            "runs": []
+           },
+           "clickCommand": {
+            "browseEndpoint": {
+             "browseId": "X"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}"#).unwrap();
+        let items = parse_genre_page(&json);
+        assert_eq!(items.len(), 2, "empty-title buttons skipped");
+        assert_eq!(items[0].title, "Chill");
+        assert_eq!(items[0].browse_id.as_deref(), Some("FEmusic_moods_and_genres_category"));
+        assert_eq!(items[0].params.as_deref(), Some("ggSUChAK"));
     }
 
     #[test]

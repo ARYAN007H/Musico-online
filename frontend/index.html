@@ -18,18 +18,18 @@
 <!-- Asset URLs carry ?v= — bump on frontend changes so the WebKit webview
      can't serve stale cached scripts/styles (bit us once: old bridge.js
      kept breaking IPC after an update). -->
-<link rel="stylesheet" href="css/tokens.css?v=0.6.4"/>
-<link rel="stylesheet" href="css/neumorphic.css?v=0.6.4"/>
-<link rel="stylesheet" href="css/animations.css?v=0.6.4"/>
-<link rel="stylesheet" href="css/layout.css?v=0.6.4"/>
-<link rel="stylesheet" href="css/now-playing.css?v=0.6.4"/>
-<link rel="stylesheet" href="css/library.css?v=0.6.4"/>
-<link rel="stylesheet" href="css/queue.css?v=0.6.4"/>
-<link rel="stylesheet" href="css/settings.css?v=0.6.4"/>
-<link rel="stylesheet" href="css/online.css?v=0.6.4"/>
-<link rel="stylesheet" href="css/topbar.css?v=0.6.4"/>
-<link rel="stylesheet" href="css/queue-panel.css?v=0.6.4"/>
-<link rel="stylesheet" href="css/am-clean.css?v=0.6.4"/>
+<link rel="stylesheet" href="css/tokens.css?v=0.6.6"/>
+<link rel="stylesheet" href="css/neumorphic.css?v=0.6.6"/>
+<link rel="stylesheet" href="css/animations.css?v=0.6.6"/>
+<link rel="stylesheet" href="css/layout.css?v=0.6.6"/>
+<link rel="stylesheet" href="css/now-playing.css?v=0.6.6"/>
+<link rel="stylesheet" href="css/library.css?v=0.6.6"/>
+<link rel="stylesheet" href="css/queue.css?v=0.6.6"/>
+<link rel="stylesheet" href="css/settings.css?v=0.6.6"/>
+<link rel="stylesheet" href="css/online.css?v=0.6.6"/>
+<link rel="stylesheet" href="css/topbar.css?v=0.6.6"/>
+<link rel="stylesheet" href="css/queue-panel.css?v=0.6.6"/>
+<link rel="stylesheet" href="css/am-clean.css?v=0.6.6"/>
 </head>
 <body>
 
@@ -82,6 +82,11 @@
           Load more
         </button>
       </div>
+    </section>
+
+    <!-- ── BROWSE (mood/genre grid, Preact shell) ─────────────────────────── -->
+    <section id="view-genres" class="view">
+      <div class="genres-wrap" id="genres-root"></div>
     </section>
 
     <!-- ── DETAIL (album / playlist / artist, Preact shell) ───────────────── -->
@@ -568,6 +573,10 @@
   <nav class="bottom-nav-pill" id="bottom-nav">
     <button class="nav-item active" data-view="browse">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+      <span>Home</span>
+    </button>
+    <button class="nav-item" data-view="genres">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span>Browse</span>
     </button>
     <button class="nav-item" data-view="now-playing">
@@ -596,15 +605,15 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      JAVASCRIPT
      ═══════════════════════════════════════════════════════════════════════════ -->
-<script src="js/bridge.js?v=0.6.4"></script>
-<script src="js/app.js?v=0.6.4"></script>
+<script src="js/bridge.js?v=0.6.6"></script>
+<script src="js/app.js?v=0.6.6"></script>
   <!-- shell.js imports store/router (versioned inside the module graph);
        standalone tags removed — they created duplicate module instances -->
-  <script type="module" src="js/core/shell.js?v=0.6.4"></script>
-<script src="js/online.js?v=0.6.4"></script>
-<script src="js/vinyl.js?v=0.6.4"></script>
-<script src="js/knob.js?v=0.6.4"></script>
-<script src="js/seek.js?v=0.6.4"></script>
+  <script type="module" src="js/core/shell.js?v=0.6.6"></script>
+<script src="js/online.js?v=0.6.6"></script>
+<script src="js/vinyl.js?v=0.6.6"></script>
+<script src="js/knob.js?v=0.6.6"></script>
+<script src="js/seek.js?v=0.6.6"></script>
 
 </body>
 </html>

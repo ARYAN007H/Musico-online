@@ -35,7 +35,7 @@ pub mod radio;
 pub mod search;
 pub mod stream;
 
-pub use catalog::{browse, home_feed};
+pub use catalog::{browse, genres, home_feed};
 pub use models::{BrowsePage, ItemKind, OnlineTrack, SearchResultPage, Shelf, ShelfItem};
 pub use radio::{radio_tracks, remember_radio_play};
 pub use search::search;
@@ -77,6 +77,16 @@ mod live_tests {
         let playable: usize = page.shelves.iter().map(|s| s.items.iter().filter(|i| i.video_id.is_some()).count()).sum();
         assert!(playable >= 5, "album page returned {playable} playable tracks");
         println!("album: {:?} | {} playable tracks | {} shelves", hdr.title, playable, page.shelves.len());
+    }
+
+    /// Live genre grid: the Browse tab categories.
+    #[test]
+    #[ignore = "network test — run with MUSICO_LIVE_TESTS=1"]
+    fn live_genres() {
+        let items = genres().expect("genres");
+        assert!(items.len() >= 50, "genres returned {} categories (ROADMAP C2.4 gate)", items.len());
+        assert!(items.iter().all(|i| i.browse_id.is_some() && !i.title.is_empty()));
+        println!("genres: {} categories — first: {:?}", items.len(), items[0].title);
     }
 
     /// Live home feed: the Listen Now shelves (editorial + personalized).

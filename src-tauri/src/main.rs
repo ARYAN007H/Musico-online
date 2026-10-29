@@ -159,6 +159,7 @@ fn main() {
             commands::online_search,
             commands::online_home,
             commands::online_browse,
+            commands::online_genres,
             commands::online_play,
             commands::online_enqueue,
             commands::online_available,

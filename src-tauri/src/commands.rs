@@ -642,6 +642,14 @@ pub async fn online_home() -> Result<crate::online::BrowsePage, String> {
         .map_err(|e| format!("home task failed: {e}"))?
 }
 
+/// The mood/genre category grid for the Browse tab.
+#[tauri::command]
+pub async fn online_genres() -> Result<Vec<crate::online::ShelfItem>, String> {
+    tauri::async_runtime::spawn_blocking(crate::online::genres)
+        .await
+        .map_err(|e| format!("genres task failed: {e}"))?
+}
+
 /// Generic catalog browse page (album / artist / playlist / genre) by its
 /// InnerTube navigation endpoint.  Detail pages (C2.2) call this with
 /// browseId+params captured from shelf items.

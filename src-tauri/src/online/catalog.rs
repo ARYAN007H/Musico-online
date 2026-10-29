@@ -9,8 +9,8 @@ use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 use super::client::{innertube_context, innertube_post, BROWSE_URL};
-use super::models::BrowsePage;
-use super::parse::parse_browse_page;
+use super::models::{BrowsePage, ShelfItem};
+use super::parse::{parse_browse_page, parse_genre_page};
 
 /// Browse pages stay fresh for this long.
 const BROWSE_TTL: Duration = Duration::from_secs(300);
@@ -57,6 +57,47 @@ pub fn home_feed() -> Result<BrowsePage, String> {
     browse("FEmusic_home", None)
 }
 
+/// The mood/genre category grid (Browse tab): ~50 category cards, each
+/// carrying the browseId+params of a shelf page the generic parser handles.
+/// Cached separately from browse pages — genre responses are navigation
+/// buttons, not shelves, so the generic BrowsePage cache can't hold them.
+pub fn genres() -> Result<Vec<ShelfItem>, String> {
+    if let Some(items) = genres_cache_get() {
+        return Ok(items);
+    }
+    let mut body = serde_json::json!({ "context": innertube_context() });
+    body["browseId"] = serde_json::Value::String("FEmusic_moods_and_genres".into());
+    let json = innertube_post(BROWSE_URL, body)?;
+    let items = parse_genre_page(&json);
+    if items.is_empty() {
+        // Don't cache an empty parse: shape drift or a transient failure must
+        // not blank the Browse tab for the whole TTL.
+        log::warn!("InnerTube genres parsed 0 categories — API shape may have changed");
+        return Ok(items);
+    }
+    genres_cache_put(&items);
+    Ok(items)
+}
+
+static GENRES_CACHE: LazyLock<Mutex<Option<(Instant, Vec<ShelfItem>)>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+fn genres_cache_get() -> Option<Vec<ShelfItem>> {
+    let mut cache = GENRES_CACHE.lock().ok()?;
+    let (fetched, items) = cache.as_ref()?;
+    if fetched.elapsed() > BROWSE_TTL {
+        *cache = None;
+        return None;
+    }
+    Some(items.clone())
+}
+
+fn genres_cache_put(items: &[ShelfItem]) {
+    if let Ok(mut cache) = GENRES_CACHE.lock() {
+        *cache = Some((Instant::now(), items.to_vec()));
+    }
+}
+
 static BROWSE_CACHE: LazyLock<Mutex<HashMap<(String, String), (Instant, BrowsePage)>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
@@ -101,5 +142,25 @@ mod tests {
     fn browse_rejects_empty_id() {
         assert!(browse("", None).is_err());
         assert!(browse("   ", None).is_err());
+    }
+
+    #[test]
+    fn genres_cache_roundtrip() {
+        assert!(genres_cache_get().is_none());
+        let items = vec![ShelfItem {
+            kind: crate::online::models::ItemKind::Unknown,
+            title: "Chill".into(),
+            subtitle: String::new(),
+            thumbnail: None,
+            video_id: None,
+            browse_id: Some("FEmusic_moods_and_genres_category".into()),
+            params: Some("ggSUChAK".into()),
+            playlist_id: None,
+        }];
+        genres_cache_put(&items);
+        let got = genres_cache_get().expect("cached items survive the TTL");
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].title, "Chill");
+        assert_eq!(got[0].params.as_deref(), Some("ggSUChAK"));
     }
 }

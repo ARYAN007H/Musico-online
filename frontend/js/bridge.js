@@ -183,6 +183,11 @@ const Bridge = (() => {
                     navigate_browse_id: null, navigate_params: null },
         });
       }
+      case 'online_genres':
+        return Promise.resolve(['Chill', 'Workout', 'Focus', 'Party', 'Feel Good', 'Romance']
+          .map((t, i) => ({ kind: 'unknown', title: t, subtitle: '', thumbnail: null,
+                            video_id: null, browse_id: 'FEmusic_moods_and_genres_category',
+                            params: 'mock' + i, playlist_id: null })));
       case 'online_available':
         return Promise.resolve(true);
       case 'online_clear_cache':
