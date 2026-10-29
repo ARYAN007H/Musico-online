@@ -103,11 +103,23 @@
   opacity: 0;
 }
 
+/* Every view is its own scroll pane (AM content-pane model): #main-content
+   clips, the view scrolls.  height:100% + min-height:0 chain matters — the
+   parent grid gives #content-area a definite height. */
 .view.active {
-  display: flex;
-  flex-direction: column;
+  display: block;
+  height: 100%;
+  overflow-y: auto;
   opacity: 1;
   animation: fade-in-scale var(--duration-slow) var(--ease-out) both;
+}
+
+/* Full-screen layouts that manage their own internal scrolling. */
+#view-now-playing.active,
+#view-queue.active {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* ─── Button Press ──────────────────────────────────────────────────────────── */
