@@ -102,8 +102,8 @@ function fmtTime(secs) {
 
 function ArtThumb({ pb }) {
   const bg = pb.thumb
-    ? `url("${pb.thumb}") center/cover no-repeat, ${pb.artGrad || 'var(--surface-raised)'}`
-    : (pb.artGrad || 'var(--surface-raised)');
+    ? `url("${pb.thumb}") center/cover no-repeat, ${pb.artGrad || 'rgba(255,255,255,0.06)'}`
+    : (pb.artGrad || 'rgba(255,255,255,0.06)');
   return html`<div class="lcd-art" style=${{ background: bg }} aria-hidden="true" />`;
 }
 
@@ -218,8 +218,8 @@ function fmtQueueTime(secs) {
 
 function QueueRow({ song, current, removable, onPlay }) {
   const bg = song.thumb
-    ? `url("${song.thumb}") center/cover no-repeat, ${song.artGrad || 'var(--surface-raised)'}`
-    : (song.artGrad || 'var(--surface-raised)');
+    ? `url("${song.thumb}") center/cover no-repeat, ${song.artGrad || 'rgba(255,255,255,0.06)'}`
+    : (song.artGrad || 'rgba(255,255,255,0.06)');
   const id = String(song.id || '');
   const vid = id.startsWith('yt:') ? id.slice(3) : null;
   return html`
@@ -332,8 +332,8 @@ function Bridge0() { return window.Bridge || { invoke: async () => ({ shelves: [
 
 function ShelfCard({ item, hero }) {
   const bg = item.thumbnail
-    ? `url("${item.thumbnail}") center/cover no-repeat, var(--surface-raised)`
-    : 'var(--surface-raised)';
+    ? `url("${item.thumbnail}") center/cover no-repeat, rgba(255,255,255,0.06)`
+    : 'rgba(255,255,255,0.06)';
   const playable = item.video_id;
   const navigable = item.browse_id;
   const onClick = () => {
@@ -453,8 +453,8 @@ async function loadDetail(target, force = false) {
 
 function DetailTrackRow({ item, index }) {
   const bg = item.thumbnail
-    ? `url("${item.thumbnail}") center/cover no-repeat, var(--surface-raised)`
-    : 'var(--surface-raised)';
+    ? `url("${item.thumbnail}") center/cover no-repeat, rgba(255,255,255,0.06)`
+    : 'rgba(255,255,255,0.06)';
   const play = () => {
     window.Online?.playTrack?.({
       video_id: item.video_id, title: item.title, artist: item.subtitle,
@@ -518,8 +518,8 @@ function DetailView() {
   }
   const header = page?.header || { title: target.title || '' };
   const art = header.thumbnail
-    ? `url("${header.thumbnail}") center/cover no-repeat, var(--surface-raised)`
-    : 'var(--surface-raised)';
+    ? `url("${header.thumbnail}") center/cover no-repeat, rgba(255,255,255,0.06)`
+    : 'rgba(255,255,255,0.06)';
 
   const playAll = () => {
     if (tracks.length) window.Online?.playTrack?.({
@@ -836,8 +836,8 @@ async function loadLibraryKind(kind, storeKey) {
 
 function LibraryCard({ entry, onOpen }) {
   const bg = entry.thumbnail
-    ? `url("${entry.thumbnail}") center/cover no-repeat, var(--surface-raised)`
-    : 'var(--surface-raised)';
+    ? `url("${entry.thumbnail}") center/cover no-repeat, rgba(255,255,255,0.06)`
+    : 'rgba(255,255,255,0.06)';
   return html`
     <div class="lib-card" role="button" tabindex="0" data-letter=${libLetter(entry)}
          aria-label="${entry.title}" onClick=${onOpen}
