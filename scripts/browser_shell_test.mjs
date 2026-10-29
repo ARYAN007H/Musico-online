@@ -26,6 +26,9 @@ check('forward works', await page.evaluate(() => location.hash === '#/queue'));
 // Review fix 1: library list/grid toggles must NOT navigate
 await page.click('#sidebar-root .nav-item[data-view="library"]');
 await page.waitForTimeout(150);
+// The list/grid toggle lives on the Songs tab now (C4.1b catalog tabs).
+await page.evaluate(() => window.MusicoStore.set('libTab', 'songs'));
+await page.waitForTimeout(200);
 const gridBtn = await page.$('#view-toggle-grid, [data-view="grid"]');
 if (gridBtn) {
   await gridBtn.click();

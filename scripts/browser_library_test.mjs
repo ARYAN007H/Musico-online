@@ -42,18 +42,29 @@ check('legacy list hidden on catalog tabs', await page.evaluate(() =>
 check('empty state shows', await page.evaluate(() =>
   !!document.querySelector('.lib-empty')));
 
-// 3. Add the first Home nav card (playlist) via the context menu.
+// 3. Add an album card from the Home feed via the context menu.
 await page.evaluate(() => window.MusicoRouter.navigate('browse'));
 await page.waitForTimeout(300);
-const navSel = '#home-root .shelf-card[data-ctx="nav"]';
-await ctxClick(navSel);
+await ctxClick('#home-root .shelf-card[data-ctx="nav"][data-kind="album"]');
 await page.waitForTimeout(150);
 await page.click('.ctx-menu .ctx-item >> text=Add to Library');
 await page.waitForTimeout(300);
 const addCalls = await ipcCalls('library_add');
-check('card add calls library_add with kind', addCalls.length === 1 &&
-  typeof addCalls[0]?.entry?.kind === 'string' &&
+check('album add calls library_add', addCalls.length === 1 &&
+  addCalls[0]?.entry?.kind === 'album' &&
   typeof addCalls[0]?.entry?.browse_id === 'string');
+
+// Playlists and genres must NOT offer Add to Library (no such kinds).
+await page.evaluate(() => {
+  const pl = document.querySelector('#home-root .shelf-card[data-kind="playlist"]');
+  const r = pl.getBoundingClientRect();
+  pl.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.x + 5, clientY: r.y + 5 }));
+});
+await page.waitForTimeout(150);
+check('playlist card has no Add to Library', await page.evaluate(() =>
+  [...document.querySelectorAll('.ctx-menu .ctx-item')].map((i) => i.textContent).join('|') === 'Open'));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(100);
 
 // Seed an album + artist for the tab/rail assertions (ctx flow is covered above).
 await page.evaluate(async () => {
@@ -74,18 +85,24 @@ await page.evaluate(async () => {
 await page.evaluate(() => window.MusicoRouter.navigate('library'));
 await page.evaluate(() => window.MusicoStore.set('libTab', 'recent'));
 await page.waitForTimeout(400);
-check('saved items appear in Recently Added', await page.evaluate(() =>
-  [...document.querySelectorAll('#library-catalog .lib-card-title')]
-    .map((e) => e.textContent).join(',') === 'Zeta Waves,Alpha Duo'));
+check('saved items appear in Recently Added', await page.evaluate(() => {
+  const titles = [...document.querySelectorAll('#library-catalog .lib-card-title')]
+    .map((e) => e.textContent);
+  // Order is timing-dependent (same-ms stamps tie), so assert membership.
+  return titles.length === 3 && titles.includes('Alpha Duo') &&
+    titles.includes('Zeta Waves');
+}));
 
 // 5. Albums tab: card + A–Z rail.
 await page.evaluate(() => window.MusicoStore.set('libTab', 'albums'));
 await page.waitForTimeout(300);
-check('albums tab shows only the album', await page.evaluate(() =>
-  [...document.querySelectorAll('.lib-with-rail .lib-card-title')]
-    .map((e) => e.textContent).join(',') === 'Zeta Waves'));
+check('albums tab shows both saved albums', await page.evaluate(() => {
+  const titles = [...document.querySelectorAll('.lib-with-rail .lib-card-title')]
+    .map((e) => e.textContent);
+  return titles.length === 2 && titles.includes('Zeta Waves');
+}));
 check('A-Z rail renders active letters', await page.evaluate(() =>
-  [...document.querySelectorAll('.az-letter:not(.az-off)')].map((l) => l.textContent).join('') === 'Z'));
+  [...document.querySelectorAll('.az-letter:not(.az-off)')].length === 2));
 await page.evaluate(() => document.querySelector('.az-letter:not(.az-off)')?.click());
 check('rail jump targets a letter card', await page.evaluate(() =>
   String(document.querySelector('.lib-card[data-letter="Z"]')?.textContent)
