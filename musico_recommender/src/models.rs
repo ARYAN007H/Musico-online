@@ -15,8 +15,10 @@ use serde::{Deserialize, Serialize};
 /// without any migration.  Existing persisted struct layouts (`SongRecord`,
 /// `SessionState`, `PlayEvent`) are frozen — bincode has no serde defaults,
 /// so a layout change would make every record fail to deserialize.
+/// Public so the app crate can hold cloned sled handles for long-running
+/// workers without pinning the recommender mutex.
 #[derive(Clone)]
-pub(crate) struct Store {
+pub struct Store {
     /// Raw sled handle (default tree holds metadata counters).
     pub db: sled::Db,
     /// `{song_id}` → bincode `SongRecord`

@@ -51,6 +51,7 @@ pub mod diversity;
 pub mod errors;
 pub mod extractor;
 pub mod history;
+pub mod batch;
 pub mod library;
 pub mod likes;
 pub mod models;
@@ -350,6 +351,66 @@ impl MusicRecommender {
         ids: &[String],
     ) -> Result<Vec<String>, RecommenderError> {
         library::contains(&self.store, kind, ids)
+    }
+
+    // ─── Batch downloads (C4.2) — thin delegation to batch.rs ───────────────
+
+    pub fn batch_create(
+        &self,
+        id: &str,
+        label: &str,
+        tracks: &[(String, String)],
+    ) -> Result<batch::BatchJob, RecommenderError> {
+        batch::create(&self.store, id, label, tracks)
+    }
+
+    pub fn batch_get(&self, id: &str) -> Result<Option<batch::BatchJob>, RecommenderError> {
+        batch::get(&self.store, id)
+    }
+
+    pub fn batch_list(&self) -> Result<Vec<batch::BatchJob>, RecommenderError> {
+        batch::list(&self.store)
+    }
+
+    pub fn batch_record(
+        &self,
+        id: &str,
+        video_id: &str,
+        result: Result<(), String>,
+    ) -> Result<Option<batch::BatchJob>, RecommenderError> {
+        batch::record(&self.store, id, video_id, result)
+    }
+
+    pub fn batch_retry_failed(&self, id: &str) -> Result<Option<batch::BatchJob>, RecommenderError> {
+        batch::retry_failed(&self.store, id)
+    }
+
+    pub fn batch_cancel(&self, id: &str) -> Result<Option<batch::BatchJob>, RecommenderError> {
+        batch::cancel(&self.store, id)
+    }
+
+    pub fn batch_run<F, G>(
+        &self,
+        id: &str,
+        resolve: &F,
+        progress: &G,
+    ) -> Result<Option<batch::BatchJob>, RecommenderError>
+    where
+        F: Fn(&str) -> Result<(), String> + Sync,
+        G: Fn(&batch::BatchJob) + Sync,
+    {
+        batch::run(&self.store, id, resolve, progress)
+    }
+
+    pub fn batch_resume_pending(&self) -> Result<Vec<String>, RecommenderError> {
+        batch::resume_pending(&self.store)
+    }
+
+    /// Cloned sled handle for long-running batch workers — lets the app run
+    /// batches on threads WITHOUT pinning the recommender mutex for minutes.
+    /// Sled handles are cheap clones sharing one database.
+    pub fn store_handle(&self) -> crate::models::Store {
+        self.store.clone()
     }
 
     fn refresh_like_vectors(&self) -> Result<(), RecommenderError> {

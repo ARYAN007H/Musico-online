@@ -572,3 +572,51 @@
   letter-spacing: 0.08em;
 }
 .lib-sentinel { min-height: 60px; }
+
+/* ─── Batch download queue (C4.2) ────────────────────────────────────────────── */
+.batch-list { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-8) var(--space-16); }
+.batch-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--space-12);
+  align-items: center;
+  padding: var(--space-8) var(--space-12);
+  border: var(--border-card);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+}
+.batch-progress {
+  grid-column: 1 / -1;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-inset);
+  overflow: hidden;
+}
+.batch-progress-fill { height: 100%; background: var(--accent); transition: width var(--duration-normal) var(--ease-out); }
+.batch-btn {
+  padding: var(--space-4) var(--space-12);
+  border: var(--border-card);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+.batch-btn:hover { color: var(--accent-text); background: var(--accent-tint); }
+.batch-failed { color: var(--error); }
+.detail-downloadall {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-8) var(--space-16);
+  border: var(--border-card);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+.detail-downloadall svg { width: 14px; height: 14px; }
+.detail-downloadall:hover { background: var(--accent-tint); color: var(--accent-text); }

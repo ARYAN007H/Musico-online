@@ -3,6 +3,16 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
+await page.addInitScript(() => {
+  window.__batchMock = {
+    id: 'batch-1', label: 'Demo Album', active: true,
+    tracks: [
+      { video_id: 'a', title: 'A', state: 'done' },
+      { video_id: 'b', title: 'B', state: 'failed:boom' },
+      { video_id: 'c', title: 'C', state: 'pending' },
+    ],
+  };
+});
 await page.goto('http://127.0.0.1:8143/index.html');
 await page.waitForTimeout(1000);
 const results = [];
@@ -75,6 +85,29 @@ await page.click('.ctx-menu .ctx-item >> text=Download');
 await page.waitForTimeout(300);
 check('downloaded row gets dl-done badge', await page.evaluate(() =>
   !!document.querySelector('.dl-done')));
+
+// 7. Batch queue UI (C4.2): progress line, Retry and Cancel actions.
+await page.evaluate(() => window.MusicoRouter.navigate('settings'));
+await page.waitForTimeout(500);
+check('batch row renders with derived counts', await page.evaluate(() => {
+  const sub = document.querySelector('.batch-row .lib-sub')?.textContent || '';
+  return sub.includes('1 of 3') && sub.includes('1 failed') && sub.includes('downloading…');
+}));
+check('progress bar at 33%', await page.evaluate(() =>
+  document.querySelector('.batch-progress-fill')?.style.width === '33%'));
+await page.click('.batch-row .batch-btn >> text=Retry');
+await page.waitForTimeout(200);
+check('retry calls online_batch_retry', await page.evaluate(() =>
+  window.__ipc.some(([c]) => c === 'online_batch_retry')));
+await page.click('.batch-row .batch-btn >> text=Cancel');
+await page.waitForTimeout(200);
+check('cancel calls online_batch_cancel', await page.evaluate(() =>
+  window.__ipc.some(([c]) => c === 'online_batch_cancel')));
+await page.evaluate(() => { window.__batchMock = null; });
+await page.evaluate(() => window.MusicoStore.set('batches', []));
+await page.waitForTimeout(200);
+check('no batches → no queue UI', await page.evaluate(() =>
+  !document.querySelector('.batch-row')));
 
 console.log(results.join('\n'));
 console.log('JS errors:', errors.length ? errors : 'none');

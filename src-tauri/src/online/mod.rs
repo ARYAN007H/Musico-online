@@ -103,6 +103,62 @@ mod live_tests {
         println!("home: {} shelves, {items} items — first: {:?}", page.shelves.len(), page.shelves[0].title);
     }
 
+    /// C4.2 gate: a 15-track batch downloads unattended with ≤2 concurrent
+    /// resolves, all tracks landing done in the persistent batch record.
+    #[test]
+    #[ignore = "network + yt-dlp heavy — run with MUSICO_LIVE_TESTS=1"]
+    fn live_batch_download_15_tracks() {
+        let tracks = radio_tracks("dQw4w9WgXcQ").expect("radio tracks");
+        let picked: Vec<(String, String)> = tracks
+            .iter()
+            .filter(|t| t.duration_secs.is_some_and(|d| (60..=600).contains(&d)))
+            .take(15)
+            .map(|t| (t.video_id.clone(), t.title.clone()))
+            .collect();
+        assert!(picked.len() >= 10, "need at least 10 normal-length tracks, got {}", picked.len());
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let store = musico_recommender::models::Store::open(dir.path().to_str().unwrap())
+            .expect("store");
+        let id = "batch-live-15";
+        musico_recommender::batch::create(&store, id, "Live gate", &picked)
+            .expect("create batch");
+
+        let max_concurrent = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let in_flight = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mc = max_concurrent.clone();
+        let inf = in_flight.clone();
+        let resolve = move |vid: &str| {
+            inf.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            mc.fetch_max(inf.load(std::sync::atomic::Ordering::SeqCst), std::sync::atomic::Ordering::SeqCst);
+            let r = resolve_stream(vid, std::time::Duration::from_secs(240)).map(|_| ());
+            inf.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+            r
+        };
+        let job = musico_recommender::batch::run(&store, id, &resolve, &|_| {})
+            .expect("batch run")
+            .expect("job");
+
+        println!(
+            "batch: {}/{} done, {} failed, max concurrent {}",
+            job.done_count(),
+            job.tracks.len(),
+            job.failed_ids().len(),
+            max_concurrent.load(std::sync::atomic::Ordering::SeqCst),
+        );
+        assert!(
+            max_concurrent.load(std::sync::atomic::Ordering::SeqCst) <= musico_recommender::batch::BATCH_CONCURRENCY,
+            "concurrency cap violated"
+        );
+        assert_eq!(job.done_count(), job.tracks.len(), "all tracks must download");
+        // Clean the cache so the run leaves no residue for other tests.
+        for vid in picked.iter().map(|(v, _)| v) {
+            if let Some(p) = cached_file(vid) {
+                let _ = std::fs::remove_file(p);
+            }
+        }
+    }
+
     /// C3.2 gate: advancing into an already-cached online track must take
     /// < 1 s — the pre-resolve worker turns the advance into exactly this
     /// cache hit.  Downloads one real track, then times the cache-hit path.
