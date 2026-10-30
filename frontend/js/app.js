@@ -24,6 +24,7 @@ const App = (() => {
         }
       }
       const merged = new Set(await Bridge.invoke('get_liked_ids'));
+    window.MusicoStore?.set('likedIds', [...merged]);
       if (merged.size > 0 || backend.size > 0) {
         likedSongs = merged;
         state.likedSongs = merged;
@@ -91,7 +92,6 @@ const App = (() => {
     setupSettingsPersistence();
     setupStorageUI();
     setupOfflineToggle();
-    relocateSearchToSidebar();
     setupEq();
     setupScanButton();
     setupLikedFilter();
@@ -155,6 +155,9 @@ const App = (() => {
 
   function applySettings(s) {
     if (!s) return;
+    // The AM clone's default look: an unset palette renders as 'music'
+    // (AM red-pink).  Explicit user choices — including legacy 'nebula' —
+    // are respected (this object is persisted back verbatim).
     document.documentElement.setAttribute('data-theme', s.theme === 'dark' ? 'dark' : 'light');
     try { localStorage.setItem('musico-theme', s.theme === 'dark' ? 'dark' : 'light'); } catch (e) {}
     document.querySelectorAll('[data-theme-pill]').forEach((p) =>
@@ -216,32 +219,6 @@ const App = (() => {
   function persistSettings(patch) {
     Object.assign(state.settings, patch);
     Bridge.invoke('save_settings', { settings: state.settings });
-  }
-
-  // ─── Sidebar search (AM placement, C4.3 UI overhaul #37) ─────────────────────
-  // MOVE (not clone) the legacy search form into the sidebar: its listeners
-  // (debounced search, history) travel with the node.  Focusing it opens the
-  // Home pane where results render — exactly AM's search-from-anywhere flow.
-  function relocateSearchToSidebar() {
-    const form = document.getElementById('browse-form');
-    if (!form) return;
-    // The sidebar is Preact-rendered (module script) — it may not exist yet
-    // when this classic script's init runs.  Poll briefly for the slot.
-    let tries = 0;
-    const tryMove = () => {
-      const slot = document.getElementById('sidebar-search-slot');
-      if (!slot) {
-        if (++tries < 40) requestAnimationFrame(tryMove);
-        return;
-      }
-      slot.appendChild(form);
-    form.classList.add('browse-search-sidebar');
-    const input = document.getElementById('browse-input');
-      input?.addEventListener('focus', () => {
-        if (window.MusicoStore?.get('activeNav') !== 'browse') window.App?.navigateTo?.('browse');
-      });
-    };
-    tryMove();
   }
 
   // ─── Airplane Mode (C4.3) ────────────────────────────────────────────────────
@@ -684,6 +661,9 @@ const App = (() => {
       // are view preferences, not navigation.
       const item = e.target.closest('.nav-item[data-view]');
       if (!item || item.disabled) return;
+      if (item.dataset.libTab) {
+        window.MusicoStore?.set('libTab', item.dataset.libTab);
+      }
       navigateTo(item.dataset.view);
     });
   }
@@ -697,6 +677,7 @@ const App = (() => {
   function _activateView(viewName) {
     // Catalog detail routes (#/browse/<payload>) render the Preact DetailView.
     if (window.MusicoRouter?.isDetail?.(viewName)) {
+      window.MusicoStore?.set('navSeq', (window.MusicoStore?.get('navSeq') || 0) + 1);
       const target = window.MusicoRouter.parseDetailRoute(viewName);
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById('view-detail')?.classList.add('active');
@@ -719,10 +700,10 @@ const App = (() => {
       // can't leave the topbar arrows stale on detail→detail navigation;
       // 'activeNav' keeps the sidebar's Home item lit, like Apple Music.
       window.MusicoStore?.set('view', viewName);
-      window.MusicoStore?.set('activeNav', 'browse');
+      window.MusicoStore?.set('activeNav', 'browse'); window.MusicoStore?.set('navSeq', (window.MusicoStore?.get('navSeq') || 0) + 1);
       return;
     }
-    window.MusicoStore?.set('activeNav', viewName);
+    window.MusicoStore?.set('activeNav', viewName); window.MusicoStore?.set('navSeq', (window.MusicoStore?.get('navSeq') || 0) + 1);
 
     state.currentView = viewName;
     window.MusicoStore?.set('view', viewName);
@@ -1026,6 +1007,8 @@ const App = (() => {
     updateModeIndicator();
     Bridge.invoke('set_playback_modes', { shuffle: state.shuffleMode, repeat: state.repeatMode });
   }
+  // Transport pill (Preact shell) delegates here — one source of truth.
+  window.__modeCyclers = { cycleShuffle, cycleRepeat };
 
   function updateModeIndicator() {
     const modes = [];
@@ -1483,6 +1466,10 @@ const App = (() => {
 
 // Modules (Preact shell) resolve globals via window, not script scope.
 window.App = App;
+if (window.__modeCyclers) {
+  App.cycleShuffle = window.__modeCyclers.cycleShuffle;
+  App.cycleRepeat = window.__modeCyclers.cycleRepeat;
+}
 
   // ─── Toasts (errors, engine warnings, action feedback) ────────────────────
   let toastTimer = null;

@@ -131,6 +131,17 @@
 
 /* ─── Palette Overrides ─────────────────────────────────────────────────────── */
 
+[data-palette="music"] {
+  --accent:            #fa2d48;
+  --accent-secondary:  #ff6b7e;
+  --accent-tint:       rgba(250, 45, 72, 0.12);
+  --accent-tint-strong: rgba(250, 45, 72, 0.22);
+  --accent-shadow:     rgba(250, 45, 72, 0.30);
+  --accent-glow:       rgba(250, 45, 72, 0.15);
+  --accent-text:       #d61f38;
+  --on-accent:         #ffffff;
+}
+
 [data-palette="nebula"] {
   --accent:            #7c6bc4;
   --accent-secondary:  #a594e0;
@@ -225,6 +236,7 @@
 }
 
 /* Slightly stronger accent tints on dark for visibility */
+[data-theme="dark"][data-palette="music"]    { --accent-tint: rgba(250,45,72,0.16); --accent-tint-strong: rgba(250,45,72,0.30); --accent-text: #ff8b9c; --on-accent: #ffffff; }
 [data-theme="dark"][data-palette="nebula"]  { --accent-tint: rgba(124,107,196,0.16); --accent-tint-strong: rgba(124,107,196,0.30); --accent-text: #b6aaff; }
 [data-theme="dark"][data-palette="sakura"]  { --accent-tint: rgba(212,84,138,0.16);  --accent-tint-strong: rgba(212,84,138,0.30); --accent-text: #f2a8c6; }
 [data-theme="dark"][data-palette="aurora"]  { --accent-tint: rgba(45,166,122,0.16);  --accent-tint-strong: rgba(45,166,122,0.30); --accent-text: #7fd9b5; }

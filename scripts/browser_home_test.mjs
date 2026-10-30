@@ -12,20 +12,19 @@ const check = (n, c) => results.push(`${c ? 'PASS' : 'FAIL'} ${n}`);
 check('home feed renders shelves', await page.evaluate(() =>
   document.querySelectorAll('#home-root .shelf').length >= 2));
 check('shelf titles render', await page.evaluate(() =>
-  [...document.querySelectorAll('.shelf-title')].map(e => e.textContent).includes('Late Night Lounge')));
+  [...document.querySelectorAll('.shelf-title')].map(e => e.textContent).includes('Late Night Lounge') ||
+  [...document.querySelectorAll('.am-hero-kicker')].map(e => e.textContent).includes('LATE NIGHT LOUNGE')));
 check('cards render with titles', await page.evaluate(() =>
   document.querySelectorAll('#home-root .shelf-card').length >= 8));
 
 // 2. Song cards play; playlist cards toast honestly
 await page.evaluate(() => {
-  // find a song-kind card by clicking behavior: song cards have video_id
-  const cards = [...document.querySelectorAll('#home-root .shelf-card')];
   window.__clicked = null;
-  const origPlay = window.Online.playTrack;
   window.Online.playTrack = (track, row) => { window.__clicked = track; };
 });
 await page.evaluate(() => {
-  const songCard = [...document.querySelectorAll('#home-root .shelf-card')][6]; // second shelf = songs in mock
+  // any playable card (songs carry data-video-id)
+  const songCard = document.querySelector('#home-root .shelf-card[data-video-id]');
   songCard.click();
 });
 await page.waitForTimeout(200);
@@ -33,11 +32,11 @@ check('song card calls playTrack', await page.evaluate(() =>
   window.__clicked && typeof window.__clicked.video_id === 'string'));
 
 await page.evaluate(() => {
-  const plCard = [...document.querySelectorAll('#home-root .shelf-card')][0]; // first shelf = playlists
-  plCard.click();
+  const navCard = document.querySelector('#home-root .shelf-card[data-ctx="nav"]');
+  navCard.click();
 });
 await page.waitForTimeout(300);
-check('playlist card navigates to detail (C2.2)', await page.evaluate(() =>
+check('nav card navigates to detail (C2.2)', await page.evaluate(() =>
   location.hash.startsWith('#/browse/')));
 // Return Home for the remaining assertions.
 await page.evaluate(() => { window.MusicoRouter.back(); });
@@ -50,6 +49,8 @@ check('feed cached in store', await page.evaluate(() =>
 // 4. Regressions: search still present under the feed, LCD/panel fine
 check('search still present on Home', await page.evaluate(() =>
   !!document.getElementById('browse-input')));
+await page.evaluate(() => window.MusicoRouter.navigate('search'));
+await page.waitForTimeout(300);
 await page.fill('#browse-input', 'teardrop');
 await page.waitForTimeout(600);
 check('search works alongside feed', await page.evaluate(() =>

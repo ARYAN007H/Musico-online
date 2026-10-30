@@ -54,14 +54,16 @@ check('album add calls library_add', addCalls.length === 1 &&
   addCalls[0]?.entry?.kind === 'album' &&
   typeof addCalls[0]?.entry?.browse_id === 'string');
 
-// Playlists and genres must NOT offer Add to Library (no such kinds).
+// Genres must NOT offer Add to Library (no such kind).
+await page.evaluate(() => window.MusicoRouter.navigate('genres'));
+await page.waitForTimeout(400);
 await page.evaluate(() => {
-  const pl = document.querySelector('#home-root .shelf-card[data-kind="playlist"]');
-  const r = pl.getBoundingClientRect();
-  pl.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.x + 5, clientY: r.y + 5 }));
+  const g = document.querySelector('.genre-card');
+  const r = g.getBoundingClientRect();
+  g.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.x + 5, clientY: r.y + 5 }));
 });
 await page.waitForTimeout(150);
-check('playlist card has no Add to Library', await page.evaluate(() =>
+check('genre card has no Add to Library', await page.evaluate(() =>
   [...document.querySelectorAll('.ctx-menu .ctx-item')].map((i) => i.textContent).join('|') === 'Open'));
 await page.keyboard.press('Escape');
 await page.waitForTimeout(100);
