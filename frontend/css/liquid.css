@@ -152,7 +152,7 @@ body { background: transparent !important; }
   z-index: 100;
 }
 .topbar-root {
-  margin: 10px 12px 6px 22px;
+  margin: 6px 12px 6px 22px;
   border: 1px solid var(--glass-border);
   border-radius: 22px;
   background: var(--glass-fill-strong);

@@ -387,12 +387,77 @@ function Shelf({ shelf, hero }) {
     </section>`;
 }
 
+/* Infinite home (#41): the FEmusic_home payload carries only 2-3 shelves for
+   fresh sessions — after the real feed, lazily append section shelves from
+   the 50 mood/genre category pages (existing online_browse command; no new
+   backend surface).  Two categories per sentinel intersection, capped. */
+const HOME_EXTRA_MAX = 14;
+const HOME_EXTRA_BATCH = 2;
+
+async function loadHomeExtra() {
+  const cur = Store.get('homeExtra') || { sections: [], next: 0, done: false };
+  // Real single-flight: homeExtraLoading is the store key the UI also reads.
+  if (Store.get('homeExtraLoading') || cur.done) return;
+  Store.set('homeExtraLoading', true);
+  try {
+    let genres = Store.get('genres');
+    if (!(genres && genres.length)) {
+      const g = await Bridge0().invoke('online_genres');
+      genres = Array.isArray(g) ? g : [];
+      Store.set('genres', genres);
+    }
+    const sections = [...cur.sections];
+    const seen = new Set(sections.map((x) => x.title));
+    let next = cur.next;
+    let added = 0;
+    while (next < genres.length && added < HOME_EXTRA_BATCH && sections.length < HOME_EXTRA_MAX) {
+      const cat = genres[next++];
+      if (seen.has(cat.title)) continue;
+      const page = await Bridge0().invoke('online_browse', { browseId: cat.browse_id, params: cat.params });
+      // null = IPC failure (Bridge swallows rejections): stop the batch and
+      // keep done=false — the observer re-arms and retries on the next
+      // scroll, instead of chaining ~50 failing XHRs into a done cap.
+      if (!page) break;
+      const shelf = page.shelves?.find((sh) => sh.items && sh.items.length);
+      if (shelf) {
+        sections.push({ title: cat.title, items: shelf.items });
+        seen.add(cat.title);
+        added++;
+      }
+    }
+    Store.set('homeExtra', {
+      sections,
+      next,
+      done: next >= genres.length || sections.length >= HOME_EXTRA_MAX,
+    });
+    Store.set('homeExtraLoading', false);
+  } catch (e) {
+    // Keep done=false so a transient error retries on the next intersection.
+    Store.set('homeExtraLoading', false);
+  }
+}
+
 function HomeFeed() {
   const feed = useStoreValue('homeFeed', null);
   const loading = useStoreValue('homeFeedLoading', false);
   const error = useStoreValue('homeFeedError', null);
+  const extra = useStoreValue('homeExtra', null);
+  const extraLoading = useStoreValue('homeExtraLoading', false);
+  const sentinelRef = useRef(null);
 
   useEffect(() => { loadHomeFeed(); }, []);
+
+  // Grow the page when the sentinel nears the viewport (the view pane clips
+  // to the window, so viewport-intersection == end-of-feed).
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !feed?.shelves?.length) return undefined;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((en) => en.isIntersecting)) loadHomeExtra();
+    }, { rootMargin: '600px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [feed, extra]);
 
   if (error && !feed?.shelves?.length) {
     return html`<div class="home-status">
@@ -406,6 +471,15 @@ function HomeFeed() {
   return html`
     <div class="home-feed">
       ${feed.shelves.map((s, i) => html`<${Shelf} key=${s.title + i} shelf=${s} hero=${i === 0} />`)}
+      ${(extra?.sections || []).map((sec, i) => html`
+        <${Shelf} key=${'x' + sec.title + i} shelf=${{ title: sec.title, items: sec.items }} />`)}
+      ${!(extra?.done) && feed.shelves.length
+        ? html`<div class="home-sentinel" ref=${sentinelRef}>
+            <div class="home-status">${extraLoading ? 'Loading more for you…' : ''}</div>
+          </div>`
+        : html`<div class="home-status" style="padding: var(--space-24) 0 0;">
+            That's the curation for now — Browse has 50 more moods.
+          </div>`}
     </div>`;
 }
 
