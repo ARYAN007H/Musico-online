@@ -257,7 +257,7 @@ const Bridge = (() => {
           music_folder: null, volume: 0.68, palette: 'nebula', art_tint: true,
           smart_recs: true, eq_enabled: true, eq_preset: 'Flat', normalization: 'Off',
           crossfade_enabled: false, crossfade_duration: 3.0, library_view_mode: 'list',
-          shuffle_mode: 0, repeat_mode: 0, theme: 'dark',
+          shuffle_mode: 0, repeat_mode: 0, theme: 'light',
           autoplay: mockSettings.autoplay,
         });
       case 'save_settings':
@@ -273,7 +273,10 @@ const Bridge = (() => {
         return Promise.resolve({ total_plays: 0, total_listened_secs: 0, total_skips: 0,
           streak_days: 0, avg_listen_ratio: 0, top_songs: [], top_artists: [], daily_minutes: [] });
       case 'get_playlists':
-        return Promise.resolve([]);
+        return Promise.resolve([
+          { id: 'pl-late-night', name: 'Late Night Drive', max_songs: 25 },
+          { id: 'pl-sunday', name: 'Sunday Morning', max_songs: 15 },
+        ]);
       case 'get_lyrics':
         return Promise.resolve(null);
       case 'set_eq':

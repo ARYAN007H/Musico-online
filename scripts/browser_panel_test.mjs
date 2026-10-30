@@ -15,7 +15,7 @@ await page.evaluate(async () => {
   await Bridge.invoke('add_to_queue', { song: { id: 'q2', title: 'Next One', artist: 'A2', album: '', duration_secs: 180, file_path: '/x' } });
 });
 await page.waitForTimeout(300);
-await page.click('.topbar-right .lcd-btn[title="Playing Next"]');
+await page.click('#btn-queue');
 await page.waitForTimeout(250);
 check('panel opens', await page.evaluate(() => !!document.querySelector('.queue-panel')));
 check('rows present', await page.evaluate(() => {

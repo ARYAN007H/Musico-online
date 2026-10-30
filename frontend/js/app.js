@@ -91,7 +91,6 @@ const App = (() => {
     setupSettingsPersistence();
     setupStorageUI();
     setupOfflineToggle();
-    relocateSearchToSidebar();
     setupEq();
     setupScanButton();
     setupLikedFilter();
@@ -155,6 +154,9 @@ const App = (() => {
 
   function applySettings(s) {
     if (!s) return;
+    // The AM clone's default look: the legacy 'nebula' default renders as
+    // the 'music' palette (AM red-pink). Explicit palette choices survive.
+    if (!s.palette || s.palette === 'nebula') s.palette = 'music';
     document.documentElement.setAttribute('data-theme', s.theme === 'dark' ? 'dark' : 'light');
     try { localStorage.setItem('musico-theme', s.theme === 'dark' ? 'dark' : 'light'); } catch (e) {}
     document.querySelectorAll('[data-theme-pill]').forEach((p) =>
@@ -216,32 +218,6 @@ const App = (() => {
   function persistSettings(patch) {
     Object.assign(state.settings, patch);
     Bridge.invoke('save_settings', { settings: state.settings });
-  }
-
-  // ─── Sidebar search (AM placement, C4.3 UI overhaul #37) ─────────────────────
-  // MOVE (not clone) the legacy search form into the sidebar: its listeners
-  // (debounced search, history) travel with the node.  Focusing it opens the
-  // Home pane where results render — exactly AM's search-from-anywhere flow.
-  function relocateSearchToSidebar() {
-    const form = document.getElementById('browse-form');
-    if (!form) return;
-    // The sidebar is Preact-rendered (module script) — it may not exist yet
-    // when this classic script's init runs.  Poll briefly for the slot.
-    let tries = 0;
-    const tryMove = () => {
-      const slot = document.getElementById('sidebar-search-slot');
-      if (!slot) {
-        if (++tries < 40) requestAnimationFrame(tryMove);
-        return;
-      }
-      slot.appendChild(form);
-    form.classList.add('browse-search-sidebar');
-    const input = document.getElementById('browse-input');
-      input?.addEventListener('focus', () => {
-        if (window.MusicoStore?.get('activeNav') !== 'browse') window.App?.navigateTo?.('browse');
-      });
-    };
-    tryMove();
   }
 
   // ─── Airplane Mode (C4.3) ────────────────────────────────────────────────────
@@ -684,6 +660,9 @@ const App = (() => {
       // are view preferences, not navigation.
       const item = e.target.closest('.nav-item[data-view]');
       if (!item || item.disabled) return;
+      if (item.dataset.libTab) {
+        window.MusicoStore?.set('libTab', item.dataset.libTab);
+      }
       navigateTo(item.dataset.view);
     });
   }
@@ -719,10 +698,10 @@ const App = (() => {
       // can't leave the topbar arrows stale on detail→detail navigation;
       // 'activeNav' keeps the sidebar's Home item lit, like Apple Music.
       window.MusicoStore?.set('view', viewName);
-      window.MusicoStore?.set('activeNav', 'browse');
+      window.MusicoStore?.set('activeNav', 'browse'); window.MusicoStore?.set('navSeq', (window.MusicoStore?.get('navSeq') || 0) + 1);
       return;
     }
-    window.MusicoStore?.set('activeNav', viewName);
+    window.MusicoStore?.set('activeNav', viewName); window.MusicoStore?.set('navSeq', (window.MusicoStore?.get('navSeq') || 0) + 1);
 
     state.currentView = viewName;
     window.MusicoStore?.set('view', viewName);

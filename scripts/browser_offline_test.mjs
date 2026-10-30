@@ -44,6 +44,8 @@ check('cached home feed still renders offline', await page.evaluate(() =>
   document.querySelectorAll('#home-root .shelf-card').length >= 5));
 
 // 4. ...but a fresh search fast-fails instead of hanging.
+await page.evaluate(() => window.MusicoRouter.navigate('search'));
+await page.waitForTimeout(300);
 await page.fill('#browse-input', 'teardrop');
 await page.waitForTimeout(500);
 check('search fast-fails offline', await page.evaluate(() => {

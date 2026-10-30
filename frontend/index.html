@@ -18,19 +18,20 @@
 <!-- Asset URLs carry ?v= — bump on frontend changes so the WebKit webview
      can't serve stale cached scripts/styles (bit us once: old bridge.js
      kept breaking IPC after an update). -->
-<link rel="stylesheet" href="css/tokens.css?v=0.6.13"/>
-<link rel="stylesheet" href="css/neumorphic.css?v=0.6.13"/>
-<link rel="stylesheet" href="css/animations.css?v=0.6.13"/>
-<link rel="stylesheet" href="css/layout.css?v=0.6.13"/>
-<link rel="stylesheet" href="css/now-playing.css?v=0.6.13"/>
-<link rel="stylesheet" href="css/library.css?v=0.6.13"/>
-<link rel="stylesheet" href="css/queue.css?v=0.6.13"/>
-<link rel="stylesheet" href="css/settings.css?v=0.6.13"/>
-<link rel="stylesheet" href="css/online.css?v=0.6.13"/>
-<link rel="stylesheet" href="css/topbar.css?v=0.6.13"/>
-<link rel="stylesheet" href="css/queue-panel.css?v=0.6.13"/>
-<link rel="stylesheet" href="css/am-clean.css?v=0.6.13"/>
-<link rel="stylesheet" href="css/liquid.css?v=0.6.13"/>
+<link rel="stylesheet" href="css/tokens.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/neumorphic.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/animations.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/layout.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/now-playing.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/library.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/queue.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/settings.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/online.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/topbar.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/queue-panel.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/am-clean.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/liquid.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/apple.css?v=0.6.14"/>
 </head>
 <body>
 
@@ -49,6 +50,9 @@
   <!-- Playing Next slide-in panel (Preact shell) -->
   <div id="panel-root"></div>
 
+  <!-- Bottom transport pill (Preact shell) -->
+  <div id="transport-root"></div>
+
   <div id="content-area">
   <main id="main-content">
 
@@ -62,7 +66,16 @@
 
         <!-- Listen Now feed (Preact shell) -->
         <div id="home-root"></div>
+      </div>
+    </section>
 
+    <!-- ── SEARCH ─────────────────────────────────────────────────────────── -->
+    <section id="view-search" class="view">
+      <div class="browse">
+        <header class="browse-header">
+          <h1 class="browse-title">Search</h1>
+          <p class="browse-sub">Songs, artists, albums — everything is playable.</p>
+        </header>
         <form class="browse-search" id="browse-form" role="search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="browse-search-icon"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
           <input type="search" id="browse-input" placeholder="Songs, artists, albums…" autocomplete="off"
@@ -93,6 +106,20 @@
     <!-- ── DETAIL (album / playlist / artist, Preact shell) ───────────────── -->
     <section id="view-detail" class="view">
       <div class="detail-wrap" id="detail-root"></div>
+    </section>
+
+    <!-- ── RADIO / MADE FOR YOU / PLAYLISTS / FAVORITES ───────────────────── -->
+    <section id="view-radio" class="view">
+      <div id="radio-root"></div>
+    </section>
+    <section id="view-made" class="view">
+      <div id="made-root"></div>
+    </section>
+    <section id="view-playlists" class="view">
+      <div id="playlists-root"></div>
+    </section>
+    <section id="view-favorites" class="view">
+      <div id="favorites-root"></div>
     </section>
 
     <!-- ── NOW PLAYING ────────────────────────────────────────────────────── -->
@@ -668,15 +695,15 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      JAVASCRIPT
      ═══════════════════════════════════════════════════════════════════════════ -->
-<script src="js/bridge.js?v=0.6.13"></script>
-<script src="js/app.js?v=0.6.13"></script>
+<script src="js/bridge.js?v=0.6.14"></script>
+<script src="js/app.js?v=0.6.14"></script>
   <!-- shell.js imports store/router (versioned inside the module graph);
        standalone tags removed — they created duplicate module instances -->
-  <script type="module" src="js/core/shell.js?v=0.6.13"></script>
-<script src="js/online.js?v=0.6.13"></script>
-<script src="js/vinyl.js?v=0.6.13"></script>
-<script src="js/knob.js?v=0.6.13"></script>
-<script src="js/seek.js?v=0.6.13"></script>
+  <script type="module" src="js/core/shell.js?v=0.6.14"></script>
+<script src="js/online.js?v=0.6.14"></script>
+<script src="js/vinyl.js?v=0.6.14"></script>
+<script src="js/knob.js?v=0.6.14"></script>
+<script src="js/seek.js?v=0.6.14"></script>
 
 </body>
 </html>

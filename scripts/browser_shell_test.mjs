@@ -14,14 +14,14 @@ check('default route #/browse', await page.evaluate(() => location.hash === '#/b
 await page.click('#sidebar-root .nav-item[data-view="library"]');
 await page.waitForTimeout(150);
 check('library nav', await page.evaluate(() => location.hash === '#/library'));
-await page.click('#sidebar-root .nav-item[data-view="queue"]');
+await page.click('#sidebar-root .nav-item[data-view="made"]');
 await page.waitForTimeout(150);
 await page.click('#nav-back');
 await page.waitForTimeout(150);
 check('back works', await page.evaluate(() => location.hash === '#/library'));
 await page.click('#nav-forward');
 await page.waitForTimeout(150);
-check('forward works', await page.evaluate(() => location.hash === '#/queue'));
+check('forward works', await page.evaluate(() => location.hash === '#/made'));
 
 // Review fix 1, superseded by C4.1c: the merged Songs list replaces the
 // legacy list/grid toggle — verify it stays hidden and navigation works.
@@ -75,7 +75,8 @@ await page.click('.lcd-play');
 await page.waitForTimeout(200);
 const after = await page.evaluate(() => !!document.querySelector('.lcd-play svg polygon'));
 check('LCD play/pause toggles', before !== after);
-await page.click('#sidebar-root .nav-item[data-view="browse"]');
+// Search moved to its own view (AM layout) — open it, then search.
+await page.click('#sidebar-root .nav-item[data-view="search"]');
 await page.waitForTimeout(150);
 await page.fill('#browse-input', 'teardrop');
 await page.waitForTimeout(600);
@@ -90,6 +91,8 @@ await page.setViewportSize({ width: 700, height: 800 });
 await page.waitForTimeout(200);
 check('topbar hidden compact', await page.evaluate(() =>
   getComputedStyle(document.getElementById('topbar-root')).display === 'none'));
+check('transport pill renders', await page.evaluate(() =>
+  !!document.querySelector('#transport-root .transport-bar')));
 
 console.log(results.join('\n'));
 console.log('JS errors:', errors.length ? errors : 'none');

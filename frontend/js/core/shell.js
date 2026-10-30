@@ -23,41 +23,53 @@ function useStoreValue(key, fallback) {
 
 const NAV_GROUPS = [
   {
-    label: 'Listen',
+    label: null,
     items: [
-      { view: 'browse', label: 'Home', icon: 'globe' },
-      { view: 'now-playing', label: 'Now Playing', icon: 'disc' },
-      { view: 'genres', label: 'Browse', icon: 'grid' },
+      { id: 'nav-home', view: 'browse', label: 'Home', icon: 'home' },
+      { id: 'nav-search', view: 'search', label: 'Search', icon: 'search' },
+      { id: 'nav-radio', view: 'radio', label: 'Radio', icon: 'radio' },
     ],
   },
   {
     label: 'Library',
     items: [
-      { view: 'library', label: 'Library', icon: 'books' },
-      { view: 'queue', label: 'Queue', icon: 'list' },
-      { view: 'playlists', label: 'Playlists', icon: 'note' },
+      { id: 'nav-recent', view: 'library', label: 'Recently Added', icon: 'clock', tab: 'recent' },
+      { id: 'nav-artists', view: 'library', label: 'Artists', icon: 'artist', tab: 'artists' },
+      { id: 'nav-albums', view: 'library', label: 'Albums', icon: 'albums', tab: 'albums' },
+      { id: 'nav-songs', view: 'library', label: 'Songs', icon: 'note', tab: 'songs' },
+      { id: 'nav-made', view: 'made', label: 'Made for You', icon: 'sparkle' },
+    ],
+  },
+  {
+    label: 'Playlists',
+    items: [
+      { id: 'nav-playlists', view: 'playlists', label: 'All Playlists', icon: 'list' },
+      { id: 'nav-favorites', view: 'favorites', label: 'Favorites', icon: 'star' },
     ],
   },
 ];
 
 const ICONS = {
-  globe: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>`,
-  disc: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3"/></svg>`,
-  grid: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`,
+  home: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>`,
+  search: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>`,
   radio: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49M7.76 16.24a6 6 0 010-8.49M19.07 4.93a10 10 0 010 14.14M4.93 19.07a10 10 0 010-14.14"/></svg>`,
-  books: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>`,
-  list: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>`,
+  clock: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
+  artist: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>`,
+  albums: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M6 7V5a2 2 0 012-2h8a2 2 0 012 2v2"/><circle cx="12" cy="14" r="3"/></svg>`,
   note: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+  sparkle: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M19 15l.9 2.6L22.5 18.5l-2.6.9L19 22l-.9-2.6-2.6-.9 2.6-.9z"/></svg>`,
+  list: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>`,
+  star: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
   gear: html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>`,
 };
 
 function NavItem({ item, active }) {
   return html`
     <button
-      class="nav-item ${active ? 'active' : ''} ${item.soon ? 'soon' : ''}"
+      class="nav-item ${active ? 'active' : ''}"
       data-view="${item.view}"
-      disabled=${item.soon || undefined}
-      title=${item.soon ? 'Coming soon' : item.label}
+      data-lib-tab=${item.tab || null}
+      title=${item.label}
       aria-current=${active ? 'page' : undefined}
     >
       ${ICONS[item.icon]}
@@ -67,29 +79,53 @@ function NavItem({ item, active }) {
 
 function Sidebar() {
   const view = useStoreValue('activeNav', Router.current());
+  const libTab = useStoreValue('libTab', 'recent');
+
+  // The sidebar search field drives the Search view's form (single source
+  // of truth for query state lives there).
+  const onSearchInput = (e) => {
+    const q = e.target.value;
+    const real = document.getElementById('browse-input');
+    if (real) {
+      real.value = q;
+      real.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    if (window.MusicoStore?.get('activeNav') !== 'search') {
+      window.MusicoRouter?.navigate('search');
+    }
+  };
+  const onSearchFocus = () => {
+    if (window.MusicoStore?.get('activeNav') !== 'search') {
+      window.MusicoRouter?.navigate('search');
+    }
+  };
+
   return html`
     <div class="side-brand">
-      <svg class="brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 3v2.5M12 18.5V21"/>
+      <svg class="brand-mark" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
       </svg>
       <div class="brand-text">
-        <div class="brand-name">MUSICO</div>
-        <div class="brand-sub">v0.6.11</div>
+        <div class="brand-name">Music</div>
       </div>
     </div>
-    <div id="sidebar-search-slot"></div>
+    <div class="side-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="search" id="sidebar-search-input" placeholder="Search" aria-label="Search"
+             onInput=${onSearchInput} onFocus=${onSearchFocus} />
+    </div>
     <nav class="side-nav" aria-label="Main">
       ${NAV_GROUPS.map((g) => html`
-        <div class="nav-group" key=${g.label}>
-          <div class="nav-group-label">${g.label}</div>
-          ${g.items.map((it) => html`<${NavItem} key=${it.view} item=${it} active=${view === it.view} />`)}
+        <div class="nav-group" key=${g.label || 'top'}>
+          ${g.label ? html`<div class="nav-group-label">${g.label}</div>` : null}
+          ${g.items.map((it) => html`<${NavItem}
+            key=${it.id}
+            item=${it}
+            active=${view === it.view && (!it.tab || it.tab === libTab)} />`)}
         </div>
       `)}
     </nav>
-    <div class="nav-group nav-group-bottom">
-      <div class="nav-group-label">Settings</div>
-      <${NavItem} item=${{ view: 'settings', label: 'Settings', icon: 'gear' }} active=${view === 'settings'} />
-    </div>`;
+    <div class="side-footer">Your music. Everywhere.</div>`;
 }
 
 // ─── TopBar (the LCD) ─────────────────────────────────────────────────────────
@@ -107,23 +143,15 @@ function ArtThumb({ pb }) {
   return html`<div class="lcd-art" style=${{ background: bg }} aria-hidden="true" />`;
 }
 
-function TopBar() {
-  const view = useStoreValue('view', Router.current());
-  const pb = useStoreValue('playback', { hasSong: false });
-  const panelOpen = useStoreValue('queuePanel', false);
-  const [scrub, setScrub] = useState(null); // 0..1000 while dragging
-  // Volume throttle (mirrors knob.js: stream input events, flush on change)
-  const volThrottle = { last: 0, pending: null };
-  const app = () => window.App || {};
-  const transport = () => app().transport || {};
-  const frac = scrub !== null ? scrub / 1000
-    : (pb.duration > 0 ? Math.min(1, pb.position / pb.duration) : 0);
-
+function SlimTopBar() {
+  // Subscribe to navigation: without this the chevrons render once and
+  // their disabled state freezes.
+  const view = useStoreValue('activeNav', Router.current());
+  const navSeq = useStoreValue('navSeq', 0); // re-render on EVERY navigation
   const canBack = Router.canGoBack();
   const canFwd = Router.canGoForward();
-
   return html`
-    <header class="topbar" role="banner">
+    <header class="topbar" role="banner" data-view=${view}>
       <div class="topbar-left">
         <button class="lcd-btn" id="nav-back" title="Back" aria-label="Go back"
                 disabled=${!canBack || undefined} onClick=${() => Router.back()}>
@@ -133,8 +161,77 @@ function TopBar() {
                 disabled=${!canFwd || undefined} onClick=${() => Router.forward()}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
-        <button class="lcd-btn" title="Previous" aria-label="Previous track"
-                onClick=${() => transport().prev?.()}>
+      </div>
+      <div class="topbar-logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      </div>
+      <div class="topbar-right">
+        <button class="lcd-btn" title="Search" aria-label="Search"
+                onClick=${() => { window.MusicoRouter?.navigate('search'); setTimeout(() => document.getElementById('sidebar-search-input')?.focus(), 60); }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        </button>
+        <button class="lcd-btn" title="Settings" aria-label="Settings"
+                onClick=${() => window.MusicoRouter?.navigate('settings')}>
+          ${ICONS.gear}
+        </button>
+      </div>
+    </header>`;
+}
+
+/* The bottom transport pill (AM playback bar) — carries the LCD ids the
+   event wiring and suites depend on. */
+function TransportBar() {
+  const pb = useStoreValue('playback', { hasSong: false });
+  const panelOpen = useStoreValue('queuePanel', false);
+  const likedIds = useStoreValue('likedIds', []);
+  const [scrub, setScrub] = useState(null);
+  const app = () => window.App || {};
+  const transport = () => app().transport || {};
+  const frac = scrub !== null ? scrub / 1000
+    : (pb.duration > 0 ? Math.min(1, pb.position / pb.duration) : 0);
+  const liked = pb.hasSong && (likedIds || []).includes(pb.id);
+
+  const cycleShuffle = () => {
+    const cur = window.App?.state?.settings?.shuffle_mode ?? 0;
+    const next = (cur + 1) % 3;
+    window.Bridge?.invoke?.('set_playback_modes', { shuffle: next, repeat: window.App?.state?.settings?.repeat_mode ?? 0 });
+    if (window.App?.state?.settings) window.App.state.settings.shuffle_mode = next;
+  };
+  const cycleRepeat = () => {
+    const cur = window.App?.state?.settings?.repeat_mode ?? 0;
+    const next = (cur + 1) % 3;
+    window.Bridge?.invoke?.('set_playback_modes', { shuffle: window.App?.state?.settings?.shuffle_mode ?? 0, repeat: next });
+    if (window.App?.state?.settings) window.App.state.settings.repeat_mode = next;
+  };
+  const toggleLike = () => {
+    if (!pb.hasSong) return;
+    const next = !liked;
+    window.Bridge?.invoke?.('set_song_like', { songId: pb.id, liked: next });
+    const ids = new Set(likedIds || []);
+    if (next) ids.add(pb.id); else ids.delete(pb.id);
+    Store.set('likedIds', [...ids]);
+  };
+
+  return html`
+    <div class="transport-bar">
+    <div class="transport-left">
+      ${pb.hasSong ? html`<${ArtThumb} pb=${pb} />` : html`<div class="lcd-art lcd-art-empty" aria-hidden="true" />`}
+      <div class="lcd-meta" aria-live="polite">
+        <div class="lcd-title">${pb.hasSong ? pb.title : 'Not Playing'}</div>
+        <div class="lcd-artist">${pb.hasSong ? pb.artist : 'Play something — it is all free'}</div>
+      </div>
+      <button class="tb-star ${liked ? 'on' : ''}" title=${liked ? 'Favorite' : 'Add to Favorites'}
+              aria-label="Favorite" onClick=${toggleLike} disabled=${!pb.hasSong || undefined}>
+        <svg viewBox="0 0 24 24" fill=${liked ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      </button>
+    </div>
+
+    <div class="transport-center">
+      <div class="transport-btns">
+        <button class="lcd-btn" title="Shuffle" aria-label="Shuffle" onClick=${cycleShuffle}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+        </button>
+        <button class="lcd-btn" title="Previous" aria-label="Previous track" onClick=${() => transport().prev?.()}>
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12l8.5 6V6z"/></svg>
         </button>
         <button class="lcd-btn lcd-play" title=${pb.isPlaying ? 'Pause' : 'Play'}
@@ -144,68 +241,51 @@ function TopBar() {
             ? html`<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>`
             : html`<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="8,5 20,12 8,19"/></svg>`}
         </button>
-        <button class="lcd-btn" title="Next" aria-label="Next track"
-                onClick=${() => transport().next?.()}>
+        <button class="lcd-btn" title="Next" aria-label="Next track" onClick=${() => transport().next?.()}>
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
         </button>
-      </div>
-
-      <div class="topbar-lcd" id="lcd">
-        ${pb.hasSong ? html`<${ArtThumb} pb=${pb} />` : html`<div class="lcd-art lcd-art-empty" aria-hidden="true" />`}
-        <div class="lcd-meta" aria-live="polite">
-          <div class="lcd-title">${pb.hasSong ? pb.title : 'Not Playing'}</div>
-          <div class="lcd-artist">${pb.hasSong ? pb.artist : 'Play something — it is all free'}</div>
-          <div class="lcd-seek-row">
-            <span class="lcd-time">${fmtTime(pb.position)}</span>
-            <input type="range" class="lcd-seek" min="0" max="1000" step="1"
-                   value=${Math.round(frac * 1000)}
-                   aria-label="Seek" aria-valuemin="0" aria-valuemax="100"
-                   aria-valuenow=${Math.round(frac * 100)}
-                   disabled=${!pb.hasSong || undefined}
-                   onInput=${(e) => setScrub(Number(e.target.value))}
-                   onChange=${(e) => {
-                     setScrub(null);
-                     const secs = (Number(e.target.value) / 1000) * (pb.duration || 0);
-                     transport().seek?.(secs);
-                   }} />
-            <span class="lcd-time">${fmtTime(pb.duration)}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="topbar-right">
-        <button class="lcd-btn ${panelOpen ? 'lcd-on' : ''}" title="Playing Next" aria-label="Playing Next queue"
-                onClick=${() => Store.set('queuePanel', !panelOpen)}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h13M3 12h13M3 18h9"/><path d="M19 12v6M22 15l-3-3-3 3"/></svg>
+        <button class="lcd-btn" title="Repeat" aria-label="Repeat" onClick=${cycleRepeat}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
         </button>
-        <button class="lcd-btn" title="Fullscreen player" aria-label="Fullscreen player"
-                onClick=${() => window.Online?.toggleFullscreen?.()}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/></svg>
-        </button>
-        <div class="lcd-vol-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="lcd-vol-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>
-          <input type="range" class="lcd-vol" min="0" max="100" step="1"
-                 value=${Math.round((pb.volume ?? 0.68) * 100)}
-                 aria-label="Volume"
-                 onInput=${(e) => {
-                   const v = Number(e.target.value) / 100;
-                   const now = Date.now();
-                   volThrottle.pending = v;
-                   if (now - volThrottle.last >= 100) {
-                     volThrottle.last = now;
-                     window.Knob?.setVolume?.(v, true);
-                     volThrottle.pending = null;
-                   }
-                 }}
-                 onChange=${(e) => {
-                   // Flush the final value (knob.js parity)
-                   const v = Number(e.target.value) / 100;
-                   window.Knob?.setVolume?.(v, true);
-                   volThrottle.pending = null;
-                 }} />
-        </div>
       </div>
-    </header>`;
+      <div class="lcd-seek-row">
+        <span class="lcd-time">${fmtTime(pb.position)}</span>
+        <input type="range" class="lcd-seek" min="0" max="1000" step="1"
+               value=${Math.round(frac * 1000)}
+               aria-label="Seek" aria-valuemin="0" aria-valuemax="100"
+               aria-valuenow=${Math.round(frac * 100)}
+               disabled=${!pb.hasSong || undefined}
+               onInput=${(e) => setScrub(Number(e.target.value))}
+               onChange=${(e) => {
+                 setScrub(null);
+                 const secs = (Number(e.target.value) / 1000) * (pb.duration || 0);
+                 transport().seek?.(secs);
+               }} />
+        <span class="lcd-time">-${fmtTime(Math.max(0, (pb.duration || 0) - pb.position))}</span>
+      </div>
+    </div>
+
+    <div class="transport-right">
+      <div class="lcd-vol-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="lcd-vol-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>
+        <input type="range" class="lcd-vol" min="0" max="100" step="1"
+               value=${Math.round((pb.volume ?? 0.68) * 100)}
+               aria-label="Volume"
+               onInput=${(e) => {
+                 const v = Number(e.target.value) / 100;
+                 window.Knob?.setVolume?.(v, true);
+               }} />
+      </div>
+      <button class="lcd-btn" id="btn-fullscreen" title="Fullscreen player" aria-label="Fullscreen player"
+              onClick=${() => window.Online?.toggleFullscreen?.()}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/></svg>
+      </button>
+      <button class="lcd-btn ${panelOpen ? 'lcd-on' : ''}" id="btn-queue" title="Playing Next" aria-label="Playing Next queue"
+              onClick=${() => Store.set('queuePanel', !panelOpen)}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h13M3 12h13M3 18h9"/><path d="M19 12v6M22 15l-3-3-3 3"/></svg>
+      </button>
+    </div>
+    </div>`;
 }
 
 // ─── Playing Next panel ───────────────────────────────────────────────────────
@@ -377,10 +457,13 @@ function ShelfCard({ item, hero }) {
     </div>`;
 }
 
-function Shelf({ shelf, hero }) {
+function Shelf({ shelf, hero, seeAll }) {
   return html`
     <section class="shelf" aria-label=${shelf.title}>
-      <h2 class="shelf-title ${hero ? 'shelf-title-hero' : ''}">${shelf.title}</h2>
+      <div class="shelf-head">
+        <h2 class="shelf-title ${hero ? 'shelf-title-hero' : ''}">${shelf.title}</h2>
+        ${seeAll ? html`<button class="shelf-seeall" onClick=${() => window.MusicoRouter?.navigate('genres')}>See All</button>` : null}
+      </div>
       <div class="shelf-row ${hero ? 'shelf-row-hero' : ''}">
         ${shelf.items.map((item, i) => html`<${ShelfCard} key=${item.video_id || item.browse_id || i} item=${item} hero=${hero} />`)}
       </div>
@@ -468,11 +551,87 @@ function HomeFeed() {
   if (!feed?.shelves?.length) {
     return html`<div class="home-status">${loading ? 'Tuning your feed…' : ''}</div>`;
   }
+  const history = useStoreValue('history', []);
+  const sh0 = feed.shelves[0] || { items: [] };
+  const sh1 = feed.shelves[1] || { items: [] };
+  const heroA = sh0.items[0];
+  const heroB = sh0.items[1];
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning.' : hour < 18 ? 'Good afternoon.' : 'Good evening.';
+
+  const playItem = (item) => {
+    if (item.video_id) {
+      window.Online?.playTrack?.({
+        video_id: item.video_id, title: item.title, artist: item.subtitle,
+        album: '', duration_secs: null, thumbnail: item.thumbnail, cached: false,
+      }, null);
+    } else if (item.browse_id) {
+      window.MusicoRouter?.navigate(window.MusicoRouter.detailRoute({
+        browseId: item.browse_id, params: item.params || null, title: item.title,
+      }));
+    }
+  };
+
   return html`
     <div class="home-feed">
-      ${feed.shelves.map((s, i) => html`<${Shelf} key=${s.title + i} shelf=${s} hero=${i === 0} />`)}
+      ${heroA ? html`
+      <div class="am-hero-row">
+        <div class="am-hero" role="button" tabindex="0" aria-label="Play ${heroA.title}"
+             onClick=${() => playItem(heroA)}
+             onKeyDown=${(e) => { if (e.key === 'Enter') playItem(heroA); }}>
+          <div class="am-hero-art" style=${{ background: heroA.thumbnail ? `url("${heroA.thumbnail}") center/cover no-repeat` : 'var(--surface-raised)' }} />
+          <div class="am-hero-overlay">
+            <div class="am-hero-kicker">${(sh0.title || 'Featured').toUpperCase()}</div>
+            <div class="am-hero-title">${heroA.title}</div>
+            <div class="am-hero-sub">${heroA.subtitle || 'Made for your Wednesday.'}</div>
+            <button class="am-hero-play" tabindex="-1" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="8,5 20,12 8,19"/></svg>
+              Play
+            </button>
+          </div>
+        </div>
+        ${heroB ? html`
+        <div class="am-hero am-hero-side" role="button" tabindex="0" aria-label="Open ${heroB.title}"
+             onClick=${() => playItem(heroB)}
+             onKeyDown=${(e) => { if (e.key === 'Enter') playItem(heroB); }}>
+          <div class="am-hero-art" style=${{ background: heroB.thumbnail ? `url("${heroB.thumbnail}") center/cover no-repeat` : 'var(--surface-raised)' }} />
+          <div class="am-hero-overlay">
+            <div class="am-hero-kicker">YOUR NEXT OBSESSION</div>
+            <div class="am-hero-title am-hero-title-sm">${heroB.title}</div>
+            <div class="am-hero-sub">${heroB.subtitle || ''}</div>
+          </div>
+        </div>` : null}
+      </div>` : null}
+
+      ${sh1.items?.length ? html`
+        <${Shelf} shelf=${{ title: 'Made for you', items: sh1.items }} seeAll=${true} />` : null}
+
+      ${history.length ? html`
+        <section class="shelf" aria-label="Recently played">
+          <h2 class="shelf-title">Recently played</h2>
+          <div class="recent-grid">
+            ${history.slice(0, 6).map((h) => html`
+              <div class="recent-row" key=${h.id}>
+                <div class="recent-art" style=${{ background: h.thumb ? `url("${h.thumb}") center/cover no-repeat, rgba(255,255,255,0.06)` : 'rgba(255,255,255,0.06)' }} aria-hidden="true" />
+                <div class="lib-meta">
+                  <div class="lib-title">${h.title}</div>
+                  <div class="lib-sub">${h.artist || ''}</div>
+                </div>
+                <button class="recent-play" aria-label="Play ${h.title}"
+                        onClick=${() => window.App?.playSong?.(h)}>
+                  <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="8,5 20,12 8,19"/></svg>
+                </button>
+              </div>`)}
+          </div>
+        </section>` : null}
+
+      ${feed.shelves.slice(2).map((s, i) => html`<${Shelf} key=${s.title + i} shelf=${s} />`)}
+
       ${(extra?.sections || []).map((sec, i) => html`
         <${Shelf} key=${'x' + sec.title + i} shelf=${{ title: sec.title, items: sec.items }} />`)}
+
+      <div class="am-greeting">${greeting} Find your next favorite.</div>
+
       ${!(extra?.done) && feed.shelves.length
         ? html`<div class="home-sentinel" ref=${sentinelRef}>
             <div class="home-status">${extraLoading ? 'Loading more for you…' : ''}</div>
@@ -1234,6 +1393,140 @@ function BatchQueue() {
     </div>`;
 }
 
+// ─── Radio (station starter) ─────────────────────────────────────────────────
+
+function RadioView() {
+  const feed = useStoreValue('homeFeed', null);
+  const seed = (feed?.shelves || []).flatMap((sh) => sh.items).find((it) => it.video_id);
+  const starting = useStoreValue('radioStarting', false);
+
+  const start = () => {
+    if (!seed) { window.App?.showToast?.('Play something first — I need a seed track'); return; }
+    Store.set('radioStarting', true);
+    window.Online?.startRadio?.({
+      video_id: seed.video_id, title: seed.title, artist: seed.subtitle,
+      album: '', duration_secs: null, thumbnail: seed.thumbnail, cached: false,
+    }).then(() => Store.set('radioStarting', false));
+  };
+
+  return html`
+    <div class="genres-wrap radio-wrap">
+      <header class="browse-header">
+        <h1 class="browse-title">Radio</h1>
+        <p class="browse-sub">An endless station tuned to what you pick.</p>
+      </header>
+      <div class="radio-card" style=${{ background: seed?.thumbnail ? `linear-gradient(rgba(20,16,40,0.55), rgba(20,16,40,0.75)), url("${seed.thumbnail}") center/cover no-repeat` : 'var(--accent-tint-strong)' }}>
+        <div class="radio-kicker">MUSICO RADIO</div>
+        <div class="radio-title">${seed ? `Started from \u201C${seed.title}\u201D` : 'Pick anything to start'}</div>
+        <div class="radio-sub">${seed ? `${seed.subtitle || 'Infinite related tracks, no repeats'}` : 'Play or search a song, then come back.'}</div>
+        <button class="am-hero-play radio-start" onClick=${start} disabled=${starting || !seed}>
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="8,5 20,12 8,19"/></svg>
+          ${starting ? 'Tuning…' : 'Start Station'}
+        </button>
+      </div>
+    </div>`;
+}
+
+// ─── Made for You (recommendations) ──────────────────────────────────────────
+
+function MadeForYouView() {
+  const recs = useStoreValue('recommendations', null);
+  const loading = useStoreValue('recommendationsLoading', false);
+
+  useEffect(() => {
+    if (recs) return;
+    Store.set('recommendationsLoading', true);
+    window.Bridge?.invoke?.('get_recommendations').then((r) => {
+      Store.set('recommendations', Array.isArray(r) ? r : []);
+      Store.set('recommendationsLoading', false);
+    });
+  }, []);
+
+  const songs = recs || [];
+  return html`
+    <div class="genres-wrap">
+      <header class="browse-header">
+        <h1 class="browse-title">Made for You</h1>
+        <p class="browse-sub">Picked by your listening patterns.</p>
+      </header>
+      ${loading && !songs.length ? html`<div class="home-status">Loading…</div>` : null}
+      <div class="made-grid">
+        ${songs.map((sm) => html`
+          <div class="made-card" key=${sm.id} role="button" tabindex="0"
+               aria-label="Play ${sm.title}"
+               onClick=${() => window.App?.playSong?.(sm)}
+               onKeyDown=${(e) => { if (e.key === 'Enter') window.App?.playSong?.(sm); }}>
+            <div class="made-art" style=${{ background: sm.artGrad || 'var(--accent-tint-strong)' }}>
+              <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            </div>
+            <div class="lib-title">${sm.title}</div>
+            <div class="lib-sub">${sm.artist}</div>
+          </div>`)}
+      </div>
+      ${!loading && !songs.length ? html`<div class="lib-empty">Listen to a few songs and this fills up.</div>` : null}
+    </div>`;
+}
+
+// ─── Playlists (smart playlists) ─────────────────────────────────────────────
+
+function PlaylistsView() {
+  const lists = useStoreValue('playlists', null);
+  useEffect(() => {
+    if (lists) return;
+    window.Bridge?.invoke?.('get_playlists').then((l) => Store.set('playlists', Array.isArray(l) ? l : []));
+  }, []);
+  const items = lists || [];
+  return html`
+    <div class="genres-wrap">
+      <header class="browse-header">
+        <h1 class="browse-title">Playlists</h1>
+        <p class="browse-sub">Smart playlists built from your library.</p>
+      </header>
+      <div class="lib-rows">
+        ${items.map((pl) => html`
+          <div class="lib-row" key=${pl.id}>
+            <div class="lib-row-play" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            </div>
+            <div class="lib-meta">
+              <div class="lib-title">${pl.name}</div>
+              <div class="lib-sub">${pl.max_songs ? `up to ${pl.max_songs} songs` : 'Smart playlist'}</div>
+            </div>
+          </div>`)}
+      </div>
+      ${!items.length ? html`<div class="lib-empty">No smart playlists yet — they build themselves as you listen.</div>` : null}
+    </div>`;
+}
+
+// ─── Favorites (liked songs) ─────────────────────────────────────────────────
+
+function FavoritesView() {
+  const likedIds = useStoreValue('likedIds', []);
+  const local = useStoreValue('localLibrary', []);
+  const favs = local.filter((sm) => likedIds.includes(sm.id));
+  return html`
+    <div class="genres-wrap">
+      <header class="browse-header">
+        <h1 class="browse-title">Favorites</h1>
+        <p class="browse-sub">Everything you starred.</p>
+      </header>
+      ${favs.length ? html`
+        <div class="lib-rows">
+          ${favs.map((sm) => html`
+            <div class="lib-row" key=${sm.id} role="button" tabindex="0" onClick=${() => window.App?.playSong?.(sm)}>
+              <div class="lib-row-play" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="8,5 20,12 8,19"/></svg>
+              </div>
+              <div class="lib-meta">
+                <div class="lib-title">${sm.title}</div>
+                <div class="lib-sub">${sm.artist}</div>
+              </div>
+            </div>`)}
+        </div>`
+        : html`<div class="lib-empty">Star a song in the transport bar and it lands here.</div>`}
+    </div>`;
+}
+
 // ─── Mount ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1244,7 +1537,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const detailRoot = document.getElementById('detail-root');
   const genresRoot = document.getElementById('genres-root');
   if (sidebarRoot) render(html`<${Sidebar} />`, sidebarRoot);
-  if (topbarRoot) render(html`<${TopBar} />`, topbarRoot);
+  if (topbarRoot) render(html`<${SlimTopBar} />`, topbarRoot);
   if (panelRoot) render(html`<${QueuePanel} />`, panelRoot);
   if (homeRoot) render(html`<${HomeFeed} />`, homeRoot);
   if (detailRoot) render(html`<${DetailView} />`, detailRoot);
@@ -1255,4 +1548,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if (libRoot) render(html`<${LibraryCatalog} />`, libRoot);
   const batchRoot = document.getElementById('batch-root');
   if (batchRoot) render(html`<${BatchQueue} />`, batchRoot);
+  const madeRoot = document.getElementById('made-root');
+  if (madeRoot) render(html`<${MadeForYouView} />`, madeRoot);
+  const radioRoot = document.getElementById('radio-root');
+  if (radioRoot) render(html`<${RadioView} />`, radioRoot);
+  const playlistsRoot = document.getElementById('playlists-root');
+  if (playlistsRoot) render(html`<${PlaylistsView} />`, playlistsRoot);
+  const favoritesRoot = document.getElementById('favorites-root');
+  if (favoritesRoot) render(html`<${FavoritesView} />`, favoritesRoot);
+  const transportRoot = document.getElementById('transport-root');
+  if (transportRoot) render(html`<${TransportBar} />`, transportRoot);
 });

@@ -24,8 +24,8 @@ const check = (n, c) => results.push(`${c ? 'PASS' : 'FAIL'} ${n}`);
 
 // 1. Click a playlist card on Home → navigates to detail route
 await page.evaluate(() => {
-  const plCard = [...document.querySelectorAll('#home-root .shelf-card')][0]; // playlist kind in mock
-  plCard.click();
+  const navCard = document.querySelector('#home-root .shelf-card[data-ctx="nav"]'); // album/playlist card
+  navCard.click();
 });
 await page.waitForTimeout(400);
 check('card click navigates to detail route', await page.evaluate(() =>

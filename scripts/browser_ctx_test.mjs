@@ -46,15 +46,16 @@ check('song menu opens with 6 items', await page.evaluate(() => {
 }));
 
 // 1b. Playlist cards get no Add to Library — the library has no playlist kind.
-await page.evaluate(() => window.MusicoRouter.navigate('browse'));
-await page.waitForTimeout(300);
+await page.evaluate(() => window.MusicoRouter.navigate('genres'));
+await page.waitForTimeout(400);
 await page.evaluate((sel) => {
   const el = document.querySelector(sel);
+  if (!el) return false;
   const r = el.getBoundingClientRect();
   el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.x + 5, clientY: r.y + 5 }));
-}, '#home-root .shelf-card[data-ctx="nav"][data-kind="playlist"]');
+}, '.genre-card');
 await page.waitForTimeout(150);
-check('playlist menu is Open-only', await page.evaluate(() =>
+check('genre menu is Open-only', await page.evaluate(() =>
   [...document.querySelectorAll('.ctx-menu .ctx-item')].map((i) => i.textContent).join('|') === 'Open'));
 await page.keyboard.press('Escape');
 
@@ -106,9 +107,10 @@ await page.waitForTimeout(300);
 const navSel = '#home-root .shelf-card[data-ctx="nav"]';
 await ctxClick(navSel);
 await page.waitForTimeout(150);
-check('nav card menu has only Open', await page.evaluate(() => {
+check('album nav menu is Open + Add to Library', await page.evaluate(() => {
   const items = [...document.querySelectorAll('.ctx-menu .ctx-item')];
-  return items.length === 1 && items[0].textContent === 'Open';
+  return items.length === 2 &&
+    items.map((i) => i.textContent).join('|') === 'Open|Add to Library';
 }));
 await page.click('.ctx-menu .ctx-item');
 await page.waitForTimeout(300);
