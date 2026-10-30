@@ -24,6 +24,7 @@ const App = (() => {
         }
       }
       const merged = new Set(await Bridge.invoke('get_liked_ids'));
+    window.MusicoStore?.set('likedIds', [...merged]);
       if (merged.size > 0 || backend.size > 0) {
         likedSongs = merged;
         state.likedSongs = merged;
@@ -154,9 +155,9 @@ const App = (() => {
 
   function applySettings(s) {
     if (!s) return;
-    // The AM clone's default look: the legacy 'nebula' default renders as
-    // the 'music' palette (AM red-pink). Explicit palette choices survive.
-    if (!s.palette || s.palette === 'nebula') s.palette = 'music';
+    // The AM clone's default look: an unset palette renders as 'music'
+    // (AM red-pink).  Explicit user choices — including legacy 'nebula' —
+    // are respected (this object is persisted back verbatim).
     document.documentElement.setAttribute('data-theme', s.theme === 'dark' ? 'dark' : 'light');
     try { localStorage.setItem('musico-theme', s.theme === 'dark' ? 'dark' : 'light'); } catch (e) {}
     document.querySelectorAll('[data-theme-pill]').forEach((p) =>
@@ -676,6 +677,7 @@ const App = (() => {
   function _activateView(viewName) {
     // Catalog detail routes (#/browse/<payload>) render the Preact DetailView.
     if (window.MusicoRouter?.isDetail?.(viewName)) {
+      window.MusicoStore?.set('navSeq', (window.MusicoStore?.get('navSeq') || 0) + 1);
       const target = window.MusicoRouter.parseDetailRoute(viewName);
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById('view-detail')?.classList.add('active');
@@ -1005,6 +1007,8 @@ const App = (() => {
     updateModeIndicator();
     Bridge.invoke('set_playback_modes', { shuffle: state.shuffleMode, repeat: state.repeatMode });
   }
+  // Transport pill (Preact shell) delegates here — one source of truth.
+  window.__modeCyclers = { cycleShuffle, cycleRepeat };
 
   function updateModeIndicator() {
     const modes = [];
@@ -1462,6 +1466,10 @@ const App = (() => {
 
 // Modules (Preact shell) resolve globals via window, not script scope.
 window.App = App;
+if (window.__modeCyclers) {
+  App.cycleShuffle = window.__modeCyclers.cycleShuffle;
+  App.cycleRepeat = window.__modeCyclers.cycleRepeat;
+}
 
   // ─── Toasts (errors, engine warnings, action feedback) ────────────────────
   let toastTimer = null;

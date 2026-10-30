@@ -274,8 +274,8 @@ const Bridge = (() => {
           streak_days: 0, avg_listen_ratio: 0, top_songs: [], top_artists: [], daily_minutes: [] });
       case 'get_playlists':
         return Promise.resolve([
-          { id: 'pl-late-night', name: 'Late Night Drive', max_songs: 25 },
-          { id: 'pl-sunday', name: 'Sunday Morning', max_songs: 15 },
+          { id: 'pl-late-night', name: 'Late Night Drive', max_songs: 25, rules: [] },
+          { id: 'pl-sunday', name: 'Sunday Morning', max_songs: 15, rules: [] },
         ]);
       case 'get_lyrics':
         return Promise.resolve(null);

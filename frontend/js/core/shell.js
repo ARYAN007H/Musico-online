@@ -185,21 +185,26 @@ function TransportBar() {
   const panelOpen = useStoreValue('queuePanel', false);
   const likedIds = useStoreValue('likedIds', []);
   const [scrub, setScrub] = useState(null);
+  const volThrottle = { last: 0, pending: null };
   const app = () => window.App || {};
   const transport = () => app().transport || {};
   const frac = scrub !== null ? scrub / 1000
     : (pb.duration > 0 ? Math.min(1, pb.position / pb.duration) : 0);
   const liked = pb.hasSong && (likedIds || []).includes(pb.id);
 
+  // Delegate to the app's own cycle helpers when present (they keep the
+  // legacy indicators in sync); fall back to direct mode cycling.
+  const shuffleMode = useStoreValue('shuffleMode', 0);
+  const repeatMode = useStoreValue('repeatMode', 0);
   const cycleShuffle = () => {
-    const cur = window.App?.state?.settings?.shuffle_mode ?? 0;
-    const next = (cur + 1) % 3;
+    if (window.App?.cycleShuffle) { window.App.cycleShuffle(); return; }
+    const next = (((window.App?.state?.settings?.shuffle_mode ?? 0) + 1) % 3);
     window.Bridge?.invoke?.('set_playback_modes', { shuffle: next, repeat: window.App?.state?.settings?.repeat_mode ?? 0 });
     if (window.App?.state?.settings) window.App.state.settings.shuffle_mode = next;
   };
   const cycleRepeat = () => {
-    const cur = window.App?.state?.settings?.repeat_mode ?? 0;
-    const next = (cur + 1) % 3;
+    if (window.App?.cycleRepeat) { window.App.cycleRepeat(); return; }
+    const next = (((window.App?.state?.settings?.repeat_mode ?? 0) + 1) % 3);
     window.Bridge?.invoke?.('set_playback_modes', { shuffle: window.App?.state?.settings?.shuffle_mode ?? 0, repeat: next });
     if (window.App?.state?.settings) window.App.state.settings.repeat_mode = next;
   };
@@ -221,14 +226,14 @@ function TransportBar() {
         <div class="lcd-artist">${pb.hasSong ? pb.artist : 'Play something — it is all free'}</div>
       </div>
       <button class="tb-star ${liked ? 'on' : ''}" title=${liked ? 'Favorite' : 'Add to Favorites'}
-              aria-label="Favorite" onClick=${toggleLike} disabled=${!pb.hasSong || undefined}>
+              aria-label="Favorite" aria-pressed=${liked} onClick=${toggleLike} disabled=${!pb.hasSong || undefined}>
         <svg viewBox="0 0 24 24" fill=${liked ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
       </button>
     </div>
 
     <div class="transport-center">
       <div class="transport-btns">
-        <button class="lcd-btn" title="Shuffle" aria-label="Shuffle" onClick=${cycleShuffle}>
+        <button class="lcd-btn ${shuffleMode ? 'lcd-on' : ''}" title="Shuffle" aria-label="Shuffle" onClick=${cycleShuffle}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
         </button>
         <button class="lcd-btn" title="Previous" aria-label="Previous track" onClick=${() => transport().prev?.()}>
@@ -244,7 +249,7 @@ function TransportBar() {
         <button class="lcd-btn" title="Next" aria-label="Next track" onClick=${() => transport().next?.()}>
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
         </button>
-        <button class="lcd-btn" title="Repeat" aria-label="Repeat" onClick=${cycleRepeat}>
+        <button class="lcd-btn ${repeatMode ? 'lcd-on' : ''}" title="Repeat" aria-label="Repeat" onClick=${cycleRepeat}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
         </button>
       </div>
@@ -273,7 +278,18 @@ function TransportBar() {
                aria-label="Volume"
                onInput=${(e) => {
                  const v = Number(e.target.value) / 100;
+                 const now = Date.now();
+                 volThrottle.pending = v;
+                 if (now - volThrottle.last >= 100) {
+                   volThrottle.last = now;
+                   window.Knob?.setVolume?.(v, true);
+                   volThrottle.pending = null;
+                 }
+               }}
+               onChange=${(e) => {
+                 const v = Number(e.target.value) / 100;
                  window.Knob?.setVolume?.(v, true);
+                 volThrottle.pending = null;
                }} />
       </div>
       <button class="lcd-btn" id="btn-fullscreen" title="Fullscreen player" aria-label="Fullscreen player"
@@ -462,7 +478,7 @@ function Shelf({ shelf, hero, seeAll }) {
     <section class="shelf" aria-label=${shelf.title}>
       <div class="shelf-head">
         <h2 class="shelf-title ${hero ? 'shelf-title-hero' : ''}">${shelf.title}</h2>
-        ${seeAll ? html`<button class="shelf-seeall" onClick=${() => window.MusicoRouter?.navigate('genres')}>See All</button>` : null}
+        ${seeAll ? html`<button class="shelf-seeall" onClick=${() => window.MusicoRouter?.navigate('made')}>See All</button>` : null}
       </div>
       <div class="shelf-row ${hero ? 'shelf-row-hero' : ''}">
         ${shelf.items.map((item, i) => html`<${ShelfCard} key=${item.video_id || item.browse_id || i} item=${item} hero=${hero} />`)}
@@ -526,6 +542,7 @@ function HomeFeed() {
   const error = useStoreValue('homeFeedError', null);
   const extra = useStoreValue('homeExtra', null);
   const extraLoading = useStoreValue('homeExtraLoading', false);
+  const history = useStoreValue('history', []);
   const sentinelRef = useRef(null);
 
   useEffect(() => { loadHomeFeed(); }, []);
@@ -551,7 +568,6 @@ function HomeFeed() {
   if (!feed?.shelves?.length) {
     return html`<div class="home-status">${loading ? 'Tuning your feed…' : ''}</div>`;
   }
-  const history = useStoreValue('history', []);
   const sh0 = feed.shelves[0] || { items: [] };
   const sh1 = feed.shelves[1] || { items: [] };
   const heroA = sh0.items[0];
@@ -1403,10 +1419,12 @@ function RadioView() {
   const start = () => {
     if (!seed) { window.App?.showToast?.('Play something first — I need a seed track'); return; }
     Store.set('radioStarting', true);
-    window.Online?.startRadio?.({
+    // v1: the seed is deterministic (first playable of the home feed).
+    const p = window.Online?.startRadio?.({
       video_id: seed.video_id, title: seed.title, artist: seed.subtitle,
       album: '', duration_secs: null, thumbnail: seed.thumbnail, cached: false,
-    }).then(() => Store.set('radioStarting', false));
+    });
+    Promise.resolve(p).then(() => Store.set('radioStarting', false));
   };
 
   return html`
@@ -1456,7 +1474,7 @@ function MadeForYouView() {
                aria-label="Play ${sm.title}"
                onClick=${() => window.App?.playSong?.(sm)}
                onKeyDown=${(e) => { if (e.key === 'Enter') window.App?.playSong?.(sm); }}>
-            <div class="made-art" style=${{ background: sm.artGrad || 'var(--accent-tint-strong)' }}>
+            <div class="made-art" style=${{ background: sm.artGrad || window.App?.artFor?.(sm) || 'var(--accent-tint-strong)' }}>
               <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.8)"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             </div>
             <div class="lib-title">${sm.title}</div>
@@ -1513,7 +1531,9 @@ function FavoritesView() {
       ${favs.length ? html`
         <div class="lib-rows">
           ${favs.map((sm) => html`
-            <div class="lib-row" key=${sm.id} role="button" tabindex="0" onClick=${() => window.App?.playSong?.(sm)}>
+            <div class="lib-row" key=${sm.id} role="button" tabindex="0"
+                 onClick=${() => window.App?.playSong?.(sm)}
+                 onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.App?.playSong?.(sm); } }}>
               <div class="lib-row-play" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="8,5 20,12 8,19"/></svg>
               </div>
