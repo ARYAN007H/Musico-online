@@ -395,8 +395,9 @@ const HOME_EXTRA_MAX = 14;
 const HOME_EXTRA_BATCH = 2;
 
 async function loadHomeExtra() {
-  const cur = Store.get('homeExtra') || { sections: [], next: 0, done: false, loading: false };
-  if (cur.loading || cur.done) return;
+  const cur = Store.get('homeExtra') || { sections: [], next: 0, done: false };
+  // Real single-flight: homeExtraLoading is the store key the UI also reads.
+  if (Store.get('homeExtraLoading') || cur.done) return;
   Store.set('homeExtraLoading', true);
   try {
     let genres = Store.get('genres');
@@ -413,9 +414,14 @@ async function loadHomeExtra() {
       const cat = genres[next++];
       if (seen.has(cat.title)) continue;
       const page = await Bridge0().invoke('online_browse', { browseId: cat.browse_id, params: cat.params });
-      const shelf = page?.shelves?.find((sh) => sh.items && sh.items.length);
+      // null = IPC failure (Bridge swallows rejections): stop the batch and
+      // keep done=false — the observer re-arms and retries on the next
+      // scroll, instead of chaining ~50 failing XHRs into a done cap.
+      if (!page) break;
+      const shelf = page.shelves?.find((sh) => sh.items && sh.items.length);
       if (shelf) {
         sections.push({ title: cat.title, items: shelf.items });
+        seen.add(cat.title);
         added++;
       }
     }
@@ -423,11 +429,11 @@ async function loadHomeExtra() {
       sections,
       next,
       done: next >= genres.length || sections.length >= HOME_EXTRA_MAX,
-      loading: false,
     });
+    Store.set('homeExtraLoading', false);
   } catch (e) {
-    const cur2 = Store.get('homeExtra') || { sections: [], next: 0 };
-    Store.set('homeExtra', { ...cur2, done: true, loading: false });
+    // Keep done=false so a transient error retries on the next intersection.
+    Store.set('homeExtraLoading', false);
   }
 }
 
