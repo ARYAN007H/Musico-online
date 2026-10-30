@@ -338,5 +338,17 @@ html:not([data-theme="dark"]) #main-content::after {
   background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.5) 82%);
 }
 
-/* ─── Grid fix: sidebar column carries the panel + its margins (#39 feedback) ── */
-#app { grid-template-columns: 252px 1fr; }
+/* ─── Grid fix: sidebar column carries the panel + its margins (#39 feedback) ──
+   Scoped to the wide shell — the compact media query collapses to 1fr. */
+@media (min-width: 860px) {
+  #app { grid-template-columns: 252px 1fr; }
+
+  /* The content pane underlaps the floating transport pill: scrolled content
+     slides UNDER the glass and is blurred by it — no second-bar seam, no
+     wallpaper sliver above the pill.  70px = pill row + margins. */
+  #content-area {
+    margin-top: -70px;
+    height: calc(100% + 70px);
+    padding-top: 70px;
+  }
+}
