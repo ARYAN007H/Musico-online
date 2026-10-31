@@ -40,13 +40,30 @@ pub fn stable_id(path: &Path) -> String {
     musico_recommender::vector_store::stable_song_id(&path.to_string_lossy())
 }
 
+/// Cover filenames embed the song id verbatim — a hostile id (a videoId
+/// carrying `/` or `..` from a malformed catalog response, or a crafted IPC
+/// `get_cover` argument) must not traverse out of the covers dir.  Legit ids
+/// are path hashes (hex) or `yt:` ids ([A-Za-z0-9_-]); anything else is
+/// flattened.
+fn sanitize_cover_stem(id: &str) -> String {
+    id.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
 /// Disk path for a song's cached cover thumbnail.
 pub fn cover_path(song_id: &str) -> PathBuf {
     dirs::cache_dir()
         .unwrap_or_else(std::env::temp_dir)
         .join(crate::identity::DATA_SUBDIR)
         .join("covers")
-        .join(format!("{song_id}.jpg"))
+        .join(format!("{}.jpg", sanitize_cover_stem(song_id)))
 }
 
 pub fn is_audio_file(path: &Path) -> bool {
@@ -447,5 +464,19 @@ mod tests {
         // No tags in the generated file → filename fallback
         assert_eq!(meta.artist, "Unknown Artist");
         assert!(meta.cover.is_none());
+    }
+
+    #[test]
+    fn cover_stem_cannot_traverse() {
+        // Legit ids pass through untouched.
+        assert_eq!(sanitize_cover_stem("yt:dQw4w9WgXcQ"), "yt:dQw4w9WgXcQ");
+        assert_eq!(sanitize_cover_stem("a1b2c3d4e5f6"), "a1b2c3d4e5f6");
+        // Hostile ids flatten: no separators, no dot segments survive.
+        for hostile in ["../../etc/passwd", "a/../../b", "..", ".", "x/y/z"] {
+            let stem = sanitize_cover_stem(hostile);
+            assert!(!stem.contains('/') && !stem.contains('.'), "{hostile} → {stem}");
+            let path = cover_path(hostile);
+            assert_eq!(path.parent().and_then(|p| p.file_name()), Some(std::ffi::OsStr::new("covers")));
+        }
     }
 }

@@ -247,6 +247,32 @@ accounts.
 - **C3.3 Download manager (single tracks) + storage settings UI** (cap slider, clear button,
   per-download state events). Gate: pause/resume-by-retry semantics, progress UI assertions.
 
+### Phase 3.5 — Backend hardening & speed pass — ✅ COMPLETE (2026-10-30)
+> Self-reviewed plan (senior-dev + security pass) before landing. All backend-internal;
+> zero IPC contract changes. Unit tests: coalescer (single-flight + dead-leader
+> eviction), cache index (exact-match), sidecar sweep, yt-dlp child semaphore, art
+> URL allowlist, cover-path traversal guard, stale bounds, warm-pick slot, cache-key
+> normalization. Live gates re-run green; cached advance 9.4 µs, variant-query
+> search 17 µs.
+- **A. Bugs fixed**: resolve budget was per-attempt × 2 (240 s → ~8 min worst case);
+  `.part`/`.ytdl` sidecars leaked forever (prune + usage both skipped them); no
+  global cap on concurrent yt-dlp children; cover fetch = unvalidated URL + unbounded
+  body from response JSON; cover filename = traversal-capable song id; stream-cache
+  prefix match could hit the wrong file on short/empty ids.
+- **B. Speed**: yt-dlp availability cached (10 min); O(1) stream-cache index for the
+  per-row `cached` badge; connect timeout + tcp_nodelay + HTTP/2 on the InnerTube
+  client; client version refresh moved off the request path (stale-while-revalidate);
+  search cache keys normalized (case/whitespace).
+- **C. Smoothness**: radio warmup (next pick fetched + pre-resolved while current
+  plays, ≥15 s gate against skip-churn); catalog stale-while-revalidate (serve stale
+  ≤6 h, one background refresh per key, empty re-parse never overwrites good data);
+  quiet skip-ahead for queue entries with missing files (stat pre-flight, ≤5).
+- **D. Concurrency**: identical in-flight InnerTube requests coalesce onto one
+  round-trip (waiters hold no throttle slot; waiter timeout evicts a dead leader).
+- **Flagged, not changed**: online-radio advance ignores the Autoplay toggle
+  (`advance_from` step 3 has no `autoplay` check) though C1.3 says it should gate it —
+  one-line fix pending a decision with the queue-panel work.
+
 ### Phase 4 — Library & downloads at scale
 - **C4.1 Library DB + pages**: Recently Added / Albums / Artists / Songs (A–Z jump rail,
   virtualized lists). Gate: 10k-row synthetic test < 250 MB RAM.

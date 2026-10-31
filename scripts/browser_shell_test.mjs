@@ -91,7 +91,13 @@ await page.setViewportSize({ width: 700, height: 800 });
 await page.waitForTimeout(200);
 check('topbar hidden compact', await page.evaluate(() =>
   getComputedStyle(document.getElementById('topbar-root')).display === 'none'));
-check('transport pill renders', await page.evaluate(() =>
+// Single-player rule: the expanded Now Playing view replaces the pill —
+// showing both duplicated every control.
+check('pill hidden while expanded player is open', await page.evaluate(() =>
+  !document.querySelector('#transport-root .transport-bar')));
+await page.evaluate(() => App.navigateTo('browse'));
+await page.waitForTimeout(150);
+check('transport pill renders on browse pages', await page.evaluate(() =>
   !!document.querySelector('#transport-root .transport-bar')));
 
 console.log(results.join('\n'));

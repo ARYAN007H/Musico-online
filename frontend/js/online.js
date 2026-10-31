@@ -128,8 +128,7 @@ const Online = (() => {
     const dur = t.duration_secs ? fmtTime(t.duration_secs) : '';
     const sub = [t.artist, t.album, dur].filter(Boolean).join(' · ');
     const thumb = t.thumbnail
-      ? `<img class="browse-thumb" src="${escapeAttr(t.thumbnail)}" alt="" loading="lazy"
-             onerror="this.outerHTML='<div class=&quot;browse-thumb browse-thumb-fallback&quot;>${svgMusic()}</div>'"/>`
+      ? `<img class="browse-thumb" src="${escapeAttr(t.thumbnail)}" alt="" loading="lazy"/>`
       : `<div class="browse-thumb browse-thumb-fallback">${svgMusic()}</div>`;
     const badge = t.cached ? '<span class="browse-cached-badge" title="Already downloaded">cached</span>' : '';
     return `
@@ -154,6 +153,11 @@ const Online = (() => {
   function bindRows(scope) {
     scope.querySelectorAll('.browse-row').forEach((row) => {
       const track = trackMap.get(row.dataset.videoId);
+      // Broken thumbnails fall back to the note placeholder — bound in JS
+      // (an inline onerror attribute would need quote-safe SVG embedding).
+      row.querySelector('img.browse-thumb')?.addEventListener('error', (e) => {
+        e.currentTarget.outerHTML = `<div class="browse-thumb browse-thumb-fallback">${svgMusic()}</div>`;
+      });
       const enqueueBtn = row.querySelector('.browse-enqueue');
       enqueueBtn?.addEventListener('click', (e) => {
         e.stopPropagation();

@@ -132,6 +132,8 @@ const App = (() => {
         state.duration = ps.duration_secs;
         state.position = ps.position_secs;
         setNowPlayingUi(ps.current_song);
+        // No Playing event fires for a restored song — fill the extras now.
+        resetNpExtras(ps.current_song);
         updateProgress();
       }
       state.isPlaying = ps.status === 'Playing';
@@ -363,7 +365,7 @@ const App = (() => {
           publishHistory(song);
           setNowPlayingUi(song);
           loadCover(song);
-          loadLyrics(song);
+          resetNpExtras(song);
           generateWaveform(song.id);
           updateSongListPlaying();
         }
@@ -434,6 +436,7 @@ const App = (() => {
     const entry = {
       id: song.id, title: song.title, artist: song.artist,
       album: song.album || '', duration_secs: song.duration_secs,
+      file_path: song.file_path || '',
       artGrad: artFor(song), thumb,
     };
     const hist = (window.MusicoStore?.get('history') || []).filter((h) => h.id !== song.id);
@@ -893,6 +896,9 @@ const App = (() => {
       showToast(`Added "${state.currentSong.title}" to queue`);
     });
 
+    // Expanded-player extras: lyrics toggle (Suggested list auto-fills per song)
+    document.getElementById('btn-lyrics')?.addEventListener('click', toggleLyricsPane);
+
     document.getElementById('btn-shuffle').addEventListener('click', cycleShuffle);
     document.getElementById('btn-repeat').addEventListener('click', cycleRepeat);
 
@@ -950,6 +956,23 @@ const App = (() => {
   }
 
   function playSong(song) {
+    // Online tracks replay through the catalog path (stream resolve) — a
+    // history/library entry carries no file_path, and play_song would
+    // reject it ("missing field 'file_path'").
+    const id = String(song?.id || '');
+    if (id.startsWith('yt:')) {
+      const track = window.Online?.trackMap?.get(id.slice(3)) || {
+        video_id: id.slice(3), title: song.title || '', artist: song.artist || '',
+        album: song.album || '', duration_secs: song.duration_secs || null,
+        thumbnail: song.thumb || null, cached: false,
+      };
+      window.Online?.playTrack?.(track, null);
+      return;
+    }
+    if (!song?.file_path) {
+      showToast("Can't play this one — its file is unavailable");
+      return;
+    }
     state.currentSong = song;
     state.isPlaying = true;
     state.position = 0;
@@ -1226,6 +1249,7 @@ const App = (() => {
   // ─── Render Recommendations ────────────────────────────────────────────────
   function renderRecommendations() {
     const container = document.getElementById('recs-list');
+    container.classList.remove('as-rows');
     container.innerHTML = '';
 
     state.recommendations.forEach((song) => {
@@ -1247,6 +1271,193 @@ const App = (() => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
       });
       container.appendChild(card);
+    });
+  }
+
+  // ─── Expanded player extras: Suggested / Lyrics ────────────────────────────
+
+  // InnerHTML escaping for the dynamic rows below (same semantics as the
+  // online.js helpers; kept local so app.js stays self-contained).
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+  function escapeAttr(s) { return escapeHtml(s); }
+
+  // Suggested cache: videoId → related rows (a repeat play of the same song
+  // doesn't re-hit the InnerTube radio endpoint).
+  const suggestedCache = new Map();
+  let suggestedSeq = 0;
+
+  // New song in the expanded player: close the lyrics pane and auto-fill the
+  // Suggested list — online tracks get YouTube Music's related list; local
+  // tracks keep the taste-engine recommendations.
+  function resetNpExtras(song) {
+    state.lyricsOpen = false;
+    document.getElementById('lyrics-section').style.display = 'none';
+    document.getElementById('recs-section').style.display = '';
+    setLyricsButton(false);
+    if (String(song?.id || '').startsWith('yt:')) {
+      fetchSuggested(String(song.id).slice(3));
+    } else {
+      state.suggested = null;
+      renderNpExtra();
+    }
+  }
+
+  function fetchSuggested(videoId) {
+    if (suggestedCache.has(videoId)) {
+      state.suggested = { videoId, rows: suggestedCache.get(videoId) };
+      renderNpExtra();
+      return;
+    }
+    const seq = ++suggestedSeq;
+    renderSuggestedLoading();
+    Bridge.invoke('online_related', { videoId }).then((rows) => {
+      if (seq !== suggestedSeq) return; // the song changed while fetching
+      const list = Array.isArray(rows) ? rows : [];
+      suggestedCache.set(videoId, list);
+      const current = state.currentSong;
+      if (!current || String(current.id) !== `yt:${videoId}`) return;
+      state.suggested = { videoId, rows: list };
+      renderNpExtra();
+    });
+  }
+
+  function renderSuggestedLoading() {
+    const container = document.getElementById('recs-list');
+    if (!container) return;
+    container.classList.add('as-rows');
+    container.innerHTML = '';
+    const msg = document.createElement('div');
+    msg.className = 'np-empty';
+    msg.textContent = 'Finding songs like this…';
+    container.appendChild(msg);
+  }
+
+  // One Suggested row: thumb, title/artist, and a queue shortcut.  Click =
+  // play now (the full resolve path), "+" = add to the Playing Next queue.
+  function suggestedRow(track) {
+    const row = document.createElement('div');
+    row.className = 'sug-row';
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+    row.setAttribute('aria-label', `Play ${track.title} by ${track.artist}`);
+    const art = track.thumbnail
+      ? `<img class="sug-thumb" src="${escapeAttr(track.thumbnail)}" alt="" loading="lazy"/>`
+      : `<div class="sug-thumb sug-thumb-fallback"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></div>`;
+    row.innerHTML = `
+      ${art}
+      <div class="sug-meta">
+        <div class="sug-title">${escapeHtml(track.title || '')}</div>
+        <div class="sug-artist">${escapeHtml(track.artist || '')}</div>
+      </div>
+      <button class="sug-enqueue" title="Add to queue" aria-label="Add ${escapeAttr(track.title || '')} to queue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      </button>`;
+
+    const activate = () => window.Online?.playTrack?.(track, null);
+    row.addEventListener('click', activate);
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+    });
+    row.querySelector('.sug-enqueue')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.Online?.enqueueTrack?.(track, null, { silent: true });
+      showToast(`Added "${track.title}" to queue`);
+    });
+    row.querySelector('.sug-thumb')?.addEventListener('error', (e) => {
+      e.currentTarget.outerHTML =
+        '<div class="sug-thumb sug-thumb-fallback"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></div>';
+    });
+    // Feed the play path the full payload (thumbnail lives here even when
+    // the song came from a context where trackMap was never populated).
+    if (track.video_id) window.Online?.trackMap?.set(track.video_id, track);
+    return row;
+  }
+
+  // Renders the Suggested list (full-width rows, not the card strip).
+  function renderNpExtra() {
+    const container = document.getElementById('recs-list');
+    if (!container) return;
+    container.classList.add('as-rows');
+    container.innerHTML = '';
+    const rows = state.suggested?.rows || [];
+    if (!rows.length) {
+      const msg = document.createElement('div');
+      msg.className = 'np-empty';
+      msg.textContent = 'No suggestions right now — like a few songs and they will come.';
+      container.appendChild(msg);
+      return;
+    }
+    rows.forEach((track) => container.appendChild(suggestedRow(track)));
+  }
+
+  // Lyrics: local songs read sidecar .lrc (timed karaoke); online songs
+  // fetch YTM's unsynced text on demand (cached per song for the session).
+  const lyricsTextCache = new Map();
+
+  function setLyricsButton(pressed) {
+    const btn = document.getElementById('btn-lyrics');
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', String(pressed));
+    btn.classList.toggle('active', pressed);
+  }
+
+  async function toggleLyricsPane() {
+    const section = document.getElementById('lyrics-section');
+    const recs = document.getElementById('recs-section');
+    if (state.lyricsOpen) {
+      state.lyricsOpen = false;
+      section.style.display = 'none';
+      recs.style.display = '';
+      setLyricsButton(false);
+      return;
+    }
+    state.lyricsOpen = true;
+    section.style.display = '';
+    recs.style.display = 'none';
+    setLyricsButton(true);
+    const song = state.currentSong;
+    if (!song) return;
+    if (String(song.id).startsWith('yt:')) {
+      const videoId = String(song.id).slice(3);
+      const list = document.getElementById('lyrics-list');
+      list.innerHTML = '';
+      if (lyricsTextCache.has(videoId)) {
+        renderPlainLyrics(lyricsTextCache.get(videoId));
+        return;
+      }
+      const loading = document.createElement('div');
+      loading.className = 'lyric-line lyric-plain';
+      loading.textContent = 'Fetching lyrics…';
+      list.appendChild(loading);
+      const text = await Bridge.invoke('online_lyrics', { videoId });
+      lyricsTextCache.set(videoId, text);
+      if (state.currentSong && String(state.currentSong.id) === `yt:${videoId}`) {
+        renderPlainLyrics(text);
+      }
+    } else {
+      loadLyrics(song);
+    }
+  }
+
+  function renderPlainLyrics(text) {
+    const list = document.getElementById('lyrics-list');
+    list.innerHTML = '';
+    if (!text || !text.trim()) {
+      const none = document.createElement('div');
+      none.className = 'lyric-line lyric-plain';
+      none.textContent = 'No lyrics available for this song.';
+      list.appendChild(none);
+      return;
+    }
+    text.split('\n').forEach((line) => {
+      const el = document.createElement('div');
+      el.className = 'lyric-line lyric-plain';
+      el.textContent = line;
+      list.appendChild(el);
     });
   }
 

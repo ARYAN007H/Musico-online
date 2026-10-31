@@ -47,7 +47,14 @@ const Bridge = (() => {
   function listen(event, callback) {
     const tauriListen = T?.event?.listen ?? T?.core?.listen ?? null;
     if (typeof tauriListen === 'function') {
-      return tauriListen(event, callback);
+      // A rejected registration (e.g. an ACL/capabilities gap denying
+      // plugin:event|listen) is otherwise INVISIBLE: the backend keeps
+      // emitting, nothing arrives, and no error surfaces.  Log it loudly
+      // and keep the unlisten contract shape with a no-op.
+      return Promise.resolve(tauriListen(event, callback)).catch((err) => {
+        console.error(`[musico] listen("${event}") failed — this channel will never receive events:`, err);
+        return () => {};
+      });
     }
     (listeners[event] = listeners[event] || []).push(callback);
     // Returns an unsubscribe function (same contract as Tauri listen)

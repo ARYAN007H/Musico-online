@@ -1,5 +1,11 @@
 //! Related tracks via the InnerTube `next` endpoint (`RD<videoId>` radio
 //! playlists) — the engine behind online autoplay and personal stations.
+//!
+//! Radio smoothness: while a `yt:` track plays with nothing queued, a
+//! speculative next pick is fetched + pre-resolved in the background
+//! ([`warm_next`]); the advance ([`take_warm_pick`]) then becomes a cache
+//! hit instead of a fetch+download dead-air gap.  One warm slot; a replaced
+//! warm's download finishes naturally (bounded waste: one track).
 
 use std::collections::VecDeque;
 use std::sync::{LazyLock, Mutex};
@@ -53,6 +59,61 @@ pub fn remember_radio_play(video_id: &str) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Radio warmup — the next pick, downloaded before it is needed
+// ---------------------------------------------------------------------------
+
+/// One speculative next radio pick.  Replaced (not cancelled) by newer
+/// warms — the superseded download runs to completion, bounded waste of one
+/// track.
+struct WarmPick {
+    seed: String,
+    track: OnlineTrack,
+}
+
+static WARM: Mutex<Option<WarmPick>> = Mutex::new(None);
+
+/// Pops the warmed pick when it belongs to `seed_video_id` (the track that
+/// just ended).  `None` → the advance fetches live.
+pub fn take_warm_pick(seed_video_id: &str) -> Option<OnlineTrack> {
+    let mut g = WARM.lock().ok()?;
+    if g.as_ref().is_some_and(|w| w.seed == seed_video_id) {
+        g.take().map(|w| w.track)
+    } else {
+        None
+    }
+}
+
+/// Fetches YouTube Music's next radio pick for `seed_video_id` and
+/// pre-resolves its stream (and cover art) in the background.  Fire and
+/// forget: failures are silent — the advance falls back to a live fetch.
+pub fn warm_next(seed_video_id: String) {
+    let tracks = match radio_tracks(&seed_video_id) {
+        Ok(t) => t,
+        Err(e) => {
+            log::debug!("radio warm: fetch failed: {e}");
+            return;
+        }
+    };
+    let Some(track) = tracks.into_iter().next() else {
+        return;
+    };
+    if let Ok(mut g) = WARM.lock() {
+        *g = Some(WarmPick { seed: seed_video_id, track: track.clone() });
+    }
+
+    if let Err(e) = super::stream::resolve_track(&track, false) {
+        log::debug!("radio warm: resolve failed: {e}");
+        // A pick that can't download would fail the advance anyway — don't
+        // let it poison the slot.
+        if let Ok(mut g) = WARM.lock() {
+            if g.as_ref().is_some_and(|w| w.track.video_id == track.video_id) {
+                *g = None;
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -67,5 +128,27 @@ mod tests {
         assert_eq!(q.len(), RADIO_REMEMBER);
         assert!(!q.contains(&"v0".to_string()), "oldest entries evicted");
         assert!(q.contains(&format!("v{}", RADIO_REMEMBER + 4)));
+    }
+
+    #[test]
+    fn warm_slot_matches_seed_and_pops() {
+        let track = OnlineTrack {
+            video_id: "warmvid".into(),
+            title: "Warm".into(),
+            artist: "A".into(),
+            album: String::new(),
+            duration_secs: None,
+            thumbnail: None,
+            cached: false,
+        };
+        *WARM.lock().unwrap() = Some(WarmPick { seed: "seedA".into(), track: track.clone() });
+        // Wrong seed → no pick, slot untouched.
+        assert!(take_warm_pick("seedB").is_none());
+        assert!(WARM.lock().unwrap().is_some());
+        // Right seed → pick consumed, slot empty.
+        let got = take_warm_pick("seedA").expect("warm pick consumed");
+        assert_eq!(got.video_id, "warmvid");
+        assert!(WARM.lock().unwrap().is_none());
+        assert!(take_warm_pick("seedA").is_none(), "second take is empty");
     }
 }

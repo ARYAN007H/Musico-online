@@ -687,3 +687,78 @@
 .lyric-line.past {
   color: var(--text-muted);
 }
+
+/* ─── Expanded player extras: Suggested list + lyrics ────────────────────── */
+/* The Suggested container reuses #recs-list but renders full-width rows,
+   not the card strip (`.as-rows` overrides the 124px grid). */
+.recs-cards.as-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: visible;
+}
+.np-empty {
+  padding: 14px 6px;
+  color: var(--text-secondary);
+  font-size: var(--text-small, 13px);
+}
+.sug-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: var(--radius-md, 12px);
+  cursor: pointer;
+}
+.sug-row:hover { background: var(--accent-tint, rgba(125, 85, 200, 0.10)); }
+.sug-thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex: none;
+}
+.sug-thumb-fallback {
+  display: grid;
+  place-items: center;
+  box-shadow: var(--neu-raised-sm, none), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.sug-thumb-fallback svg { width: 18px; height: 18px; color: rgba(255, 255, 255, 0.8); }
+.sug-meta { flex: 1; min-width: 0; }
+.sug-title {
+  font-size: var(--text-body, 14px);
+  font-weight: var(--weight-medium, 500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sug-artist {
+  font-size: var(--text-small, 12px);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sug-enqueue {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.sug-enqueue:hover {
+  background: var(--accent-tint, rgba(125, 85, 200, 0.14));
+  color: var(--accent-text, var(--text-primary));
+}
+.sug-enqueue svg { width: 15px; height: 15px; }
+
+/* Unsynced (fetched) lyrics — plainer than the karaoke lines */
+.lyric-plain {
+  white-space: pre-wrap;
+  padding: 6px 12px;
+}

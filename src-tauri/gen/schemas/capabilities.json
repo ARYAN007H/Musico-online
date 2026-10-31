@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Main-window capability. Grants the core plugins their default permissions — without `core:event` the runtime ACL-denies `plugin:event|listen`, so every Bridge.listen() registration rejects and no backend event (playback-event, queue-changed, online-status, …) ever reaches the UI. App-defined commands bypass the ACL, which is why invoke() worked while events were dead.","local":true,"windows":["main"],"permissions":["core:default"]}}

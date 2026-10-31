@@ -9,7 +9,9 @@
 //! with jitter instead of hammering at a fixed interval.  The [`Transport`]
 //! trait keeps all of this unit-testable without touching the network.
 
-use std::sync::{Condvar, LazyLock, Mutex, RwLock};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, LazyLock, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use rand::Rng;
@@ -31,8 +33,16 @@ const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/201001
 /// `next` (radio) endpoint has been observed taking >12 s end-to-end under
 /// load — a timeout there must be headroom, not a hard failure.
 pub(crate) const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
+/// Connect budget — a black-holed connection must fail fast instead of
+/// eating the whole request budget.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// Any InnerTube call slower than this logs at warn (faster ones at debug).
+const SLOW_REQUEST: Duration = Duration::from_secs(5);
 /// How often the live client version is re-fetched.
 const VERSION_TTL: Duration = Duration::from_secs(24 * 3600);
+/// Paces background version-refresh retries — a dead homepage must not turn
+/// every stale-serve into a refresh attempt.
+const VERSION_RETRY: Duration = Duration::from_secs(5 * 60);
 
 /// Global cap on in-flight InnerTube requests (rate-limit hygiene).
 const MAX_CONCURRENCY: usize = 2;
@@ -182,6 +192,115 @@ pub(crate) fn post_via(
 }
 
 // ---------------------------------------------------------------------------
+// Request coalescing — identical in-flight requests share one round-trip
+// ---------------------------------------------------------------------------
+
+struct Coalesced {
+    done: bool,
+    result: Option<Result<serde_json::Value, String>>,
+}
+
+static INFLIGHT: LazyLock<Mutex<HashMap<String, Arc<(Mutex<Coalesced>, Condvar)>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+/// How long a waiter stays parked on its leader before declaring it lost.
+const COALESCE_WAIT: Duration = Duration::from_secs(60);
+
+/// Executes `body` under the global throttle, coalescing identical
+/// in-flight requests: the first caller leads (permit + retry machinery in
+/// [`post_via`]); later callers park on the entry and clone the outcome
+/// WITHOUT holding a throttle slot.  Failure semantics: a leader panic is
+/// caught and published as an error; a waiter that times out EVICTS the
+/// entry so a later caller can lead again — a lost leader never wedges a
+/// key forever.
+pub(crate) fn post_coalesced(
+    transport: &dyn Transport,
+    url: &str,
+    body: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    post_coalesced_wait(transport, url, body, COALESCE_WAIT)
+}
+
+pub(crate) fn post_coalesced_wait(
+    transport: &dyn Transport,
+    url: &str,
+    body: &serde_json::Value,
+    max_wait: Duration,
+) -> Result<serde_json::Value, String> {
+    let payload = body.to_string();
+    let key = format!("{url}\n{payload}");
+    let (leader, entry) = {
+        let mut inflight = INFLIGHT.lock().unwrap_or_else(|e| e.into_inner());
+        match inflight.get(&key) {
+            Some(e) => (false, e.clone()),
+            None => {
+                let e = Arc::new((
+                    Mutex::new(Coalesced { done: false, result: None }),
+                    Condvar::new(),
+                ));
+                inflight.insert(key.clone(), e.clone());
+                (true, e)
+            }
+        }
+    };
+
+    if !leader {
+        let (lock, cv) = &*entry;
+        let deadline = Instant::now() + max_wait;
+        let mut g = lock.lock().unwrap_or_else(|e| e.into_inner());
+        while !g.done {
+            let now = Instant::now();
+            if now >= deadline {
+                // Lost leader: evict (if the entry is still ours) so the
+                // key can't wedge; the caller's caches/retries recover.
+                if let Ok(mut inflight) = INFLIGHT.lock() {
+                    if inflight.get(&key).is_some_and(|e| Arc::ptr_eq(e, &entry)) {
+                        inflight.remove(&key);
+                    }
+                }
+                return Err("coalesced request wait timed out".into());
+            }
+            let chunk = deadline
+                .saturating_duration_since(now)
+                .min(Duration::from_secs(5));
+            let (g2, _) = cv.wait_timeout(g, chunk).unwrap_or_else(|e| e.into_inner());
+            g = g2;
+        }
+        return g
+            .result
+            .clone()
+            .unwrap_or_else(|| Err("coalesced request lost its result".into()));
+    }
+
+    // Leader: run it; publish no matter what (panics included), then drop
+    // the entry so the next identical request starts fresh.
+    let t0 = Instant::now();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        post_via(transport, url, body)
+    }))
+    .unwrap_or_else(|_| Err("innertube request panicked".into()));
+    let elapsed = t0.elapsed();
+    if elapsed >= SLOW_REQUEST {
+        log::warn!("innertube {url} took {elapsed:?}");
+    } else {
+        log::debug!("innertube {url} took {elapsed:?}");
+    }
+
+    let (lock, cv) = &*entry;
+    {
+        let mut g = lock.lock().unwrap_or_else(|e| e.into_inner());
+        g.done = true;
+        g.result = Some(result.clone());
+    }
+    cv.notify_all();
+    if let Ok(mut inflight) = INFLIGHT.lock() {
+        if inflight.get(&key).is_some_and(|e| Arc::ptr_eq(e, &entry)) {
+            inflight.remove(&key);
+        }
+    }
+    result
+}
+
+// ---------------------------------------------------------------------------
 // Public helpers
 // ---------------------------------------------------------------------------
 
@@ -189,45 +308,84 @@ pub(crate) fn http_client() -> Result<reqwest::blocking::Client, String> {
     reqwest::blocking::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(HTTP_TIMEOUT)
+        .connect_timeout(CONNECT_TIMEOUT)
+        .tcp_nodelay(true)
+        .pool_max_idle_per_host(8)
+        .pool_idle_timeout(Duration::from_secs(90))
         .build()
         .map_err(|e| format!("HTTP client: {e}"))
 }
 
-/// POSTs to an InnerTube endpoint (retry + throttle applied).
+/// POSTs to an InnerTube endpoint (coalescing + retry + throttle applied).
 pub(crate) fn innertube_post(url: &str, body: serde_json::Value) -> Result<serde_json::Value, String> {
     let full = format!("{url}?prettyPrint=false&key={INNERTUBE_KEY}");
-    post_via(&ReqwestTransport, &full, &body)
+    post_coalesced(&ReqwestTransport, &full, &body)
 }
 
-/// The live InnerTube client version, auto-refreshed from the
-/// music.youtube.com homepage (24 h TTL).  Falls back to the last seen value,
-/// then to [`INNERTUBE_VERSION_FALLBACK`].
-pub(crate) fn client_version() -> String {
-    static CACHE: LazyLock<RwLock<Option<(Instant, String)>>> =
-        LazyLock::new(|| RwLock::new(None));
+// ---------------------------------------------------------------------------
+// Client version — stale-while-revalidate
+// ---------------------------------------------------------------------------
 
-    if let Some((at, v)) = CACHE.read().ok().and_then(|g| g.clone()) {
+static VERSION_CACHE: LazyLock<RwLock<Option<(Instant, String)>>> =
+    LazyLock::new(|| RwLock::new(None));
+static VERSION_REFRESHING: AtomicBool = AtomicBool::new(false);
+static VERSION_LAST_ATTEMPT: LazyLock<Mutex<Option<Instant>>> = LazyLock::new(|| Mutex::new(None));
+
+/// The live InnerTube client version, auto-refreshed from the
+/// music.youtube.com homepage (24 h TTL).  Stale-while-revalidate: once ANY
+/// value is known, requests are answered instantly from cache and the
+/// refresh runs on a background thread — the homepage fetch never sits on
+/// the request path.  Falls back to the last seen value, then to
+/// [`INNERTUBE_VERSION_FALLBACK`].
+pub(crate) fn client_version() -> String {
+    if let Some((at, v)) = VERSION_CACHE.read().ok().and_then(|g| g.clone()) {
         if at.elapsed() < VERSION_TTL {
             return v;
         }
+        maybe_refresh_version();
+        return v;
     }
-
-    let fresh = http_client().ok().and_then(|client| {
-        let html = client.get(HOME_URL).send().ok()?.text().ok()?;
-        extract_client_version(&html)
-    });
-
-    let value = match fresh {
-        Some(v) => v,
-        None => match CACHE.read().ok().and_then(|g| g.clone()) {
-            Some((_, stale)) => stale,
-            None => INNERTUBE_VERSION_FALLBACK.to_string(),
-        },
-    };
-    if let Ok(mut g) = CACHE.write() {
+    // First use ever: block once, then cache (fallback included).
+    let value = fetch_client_version().unwrap_or_else(|| INNERTUBE_VERSION_FALLBACK.to_string());
+    if let Ok(mut g) = VERSION_CACHE.write() {
         *g = Some((Instant::now(), value.clone()));
     }
     value
+}
+
+fn fetch_client_version() -> Option<String> {
+    let html = shared_client()?.get(HOME_URL).send().ok()?.text().ok()?;
+    extract_client_version(&html)
+}
+
+/// At most one background refresh at a time, retried at most once per
+/// [`VERSION_RETRY`] after a failure.
+fn maybe_refresh_version() {
+    if VERSION_REFRESHING.swap(true, Ordering::Relaxed) {
+        return; // a refresh is already in flight
+    }
+    {
+        let mut last = VERSION_LAST_ATTEMPT.lock().unwrap_or_else(|e| e.into_inner());
+        if last.is_some_and(|t| t.elapsed() < VERSION_RETRY) {
+            VERSION_REFRESHING.store(false, Ordering::Relaxed);
+            return;
+        }
+        *last = Some(Instant::now());
+    }
+    let spawned = std::thread::Builder::new()
+        .name("innertube-version".into())
+        .spawn(|| {
+            if let Some(v) = fetch_client_version() {
+                // Fresh timestamp even if the value is unchanged — the TTL restarts.
+                if let Ok(mut g) = VERSION_CACHE.write() {
+                    *g = Some((Instant::now(), v));
+                }
+            }
+            VERSION_REFRESHING.store(false, Ordering::Relaxed);
+        });
+    if spawned.is_err() {
+        VERSION_REFRESHING.store(false, Ordering::Relaxed);
+    }
 }
 
 /// Pulls `"clientVersion":"1.20241001.01.00"` out of the homepage HTML.
@@ -377,5 +535,84 @@ mod tests {
             let _p = acquire_permit();
         }
         assert_eq!(free_permits(), MAX_CONCURRENCY);
+    }
+
+    /// Coalescing tests go through post_via (permits) — hold the gate.
+    struct CountingTransport {
+        delay: Duration,
+        calls: AtomicUsize,
+    }
+
+    impl Transport for CountingTransport {
+        fn send(&self, _url: &str, _body: &str) -> Result<serde_json::Value, TransportError> {
+            std::thread::sleep(self.delay);
+            let i = self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(serde_json::json!({ "call": i }))
+        }
+    }
+
+    #[test]
+    fn identical_inflight_requests_share_one_roundtrip() {
+        let _gate = TEST_GATE.lock().unwrap_or_else(|e| e.into_inner());
+        let t = Arc::new(CountingTransport {
+            delay: Duration::from_millis(150),
+            calls: AtomicUsize::new(0),
+        });
+        let mut handles = Vec::new();
+        for _ in 0..4 {
+            let t2 = t.clone();
+            handles.push(std::thread::spawn(move || {
+                post_coalesced_wait(
+                    &*t2,
+                    "https://coalesce.test",
+                    &serde_json::json!({ "q": "same" }),
+                    Duration::from_secs(5),
+                )
+            }));
+        }
+        for h in handles {
+            h.join().unwrap().expect("every waiter gets the leader's result");
+        }
+        assert_eq!(
+            t.calls.load(Ordering::SeqCst),
+            1,
+            "four identical requests, one round-trip"
+        );
+    }
+
+    #[test]
+    fn timed_out_waiter_evicts_dead_leader() {
+        let _gate = TEST_GATE.lock().unwrap_or_else(|e| e.into_inner());
+        let t = Arc::new(CountingTransport {
+            delay: Duration::from_millis(400),
+            calls: AtomicUsize::new(0),
+        });
+        let t_leader = t.clone();
+        let leader = std::thread::spawn(move || {
+            post_coalesced_wait(
+                &*t_leader,
+                "https://evict.test",
+                &serde_json::json!({ "q": "stuck" }),
+                Duration::from_secs(5),
+            )
+        });
+        std::thread::sleep(Duration::from_millis(60)); // leader registered
+        let waiter = post_coalesced_wait(
+            &*t,
+            "https://evict.test",
+            &serde_json::json!({ "q": "stuck" }),
+            Duration::from_millis(80),
+        );
+        assert!(waiter.is_err(), "waiter times out instead of parking forever");
+        // The eviction frees the key: a fresh caller leads a NEW round-trip.
+        let fresh = post_coalesced_wait(
+            &*t,
+            "https://evict.test",
+            &serde_json::json!({ "q": "stuck" }),
+            Duration::from_secs(5),
+        );
+        assert!(fresh.is_ok(), "evicted entry does not wedge the key");
+        leader.join().unwrap().ok();
+        assert_eq!(t.calls.load(Ordering::SeqCst), 2, "leader + fresh leader only");
     }
 }

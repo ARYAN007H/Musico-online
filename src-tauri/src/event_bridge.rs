@@ -129,9 +129,24 @@ fn advance_from(handle: &AppHandle, ended: Option<&PlaybackEvent>, allow_online_
         }
     }
 
-    // 1. Explicit queue first
-    let next_song = state.queue.lock().unwrap_or_else(|e| e.into_inner()).next();
-    if let Some(song) = next_song {
+    // 1. Explicit queue first.  A dead entry (cache-evicted stream, missing
+    //    local file) must not kill the session: skip it and try the next,
+    //    bounded so a fully-corrupt queue can't spin.  The stat pre-flight
+    //    keeps the skip quiet — the engine only sees files that exist, so no
+    //    per-skip Error events.
+    let mut skipped = 0u8;
+    loop {
+        let next_song = state.queue.lock().unwrap_or_else(|e| e.into_inner()).next();
+        let Some(song) = next_song else { break };
+        if !std::path::Path::new(&song.file_path).exists() {
+            skipped += 1;
+            log::warn!("advance: skipping queued song with missing file: {}", song.id);
+            if skipped >= 5 {
+                log::warn!("advance: 5 dead entries skipped, falling through");
+                break;
+            }
+            continue;
+        }
         if play_and_track(&eng, &state, song) {
             emit_queue_snapshot(handle, &state);
             return true;
@@ -226,40 +241,30 @@ fn advance_from(handle: &AppHandle, ended: Option<&PlaybackEvent>, allow_online_
     false
 }
 
-/// Continues playback after an online track: fetches YouTube Music related
-/// tracks for the seed, resolves + downloads the pick, and plays it through
-/// the queue path.  Runs on the `online-radio` worker thread — everything in
-/// here is allowed to block.  On any failure the local advance policy runs
-/// (with online radio disabled, so no recursion).
+/// Continues playback after an online track: plays the warmed next pick
+/// (pre-fetched + pre-resolved while the previous track played — a cache
+/// hit), falling back to a live radio fetch on any warm failure.  Runs on
+/// the `online-radio` worker thread — everything in here is allowed to
+/// block.  On any failure the local advance policy runs (with online radio
+/// disabled, so no recursion).
 fn online_radio_advance(handle: &AppHandle, seed_video_id: String) {
     let outcome = (|| -> Result<(), String> {
+        if let Some(track) = crate::online::radio::take_warm_pick(&seed_video_id) {
+            match crate::online::resolve_stream(&track.video_id, RESOLVE_BUDGET) {
+                Ok(file) => return start_radio_track(handle, &track, &file),
+                Err(e) => log::debug!("radio: warm pick unusable ({e}); fetching live"),
+            }
+        }
         let tracks = crate::online::radio_tracks(&seed_video_id)?;
         let Some(track) = tracks.first() else {
             return Err("radio: no related tracks".into());
         };
-        crate::online::remember_radio_play(&track.video_id);
         let _ = handle.emit(
             "online-status",
             json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
         );
-        let file =
-            crate::online::resolve_stream(&track.video_id, std::time::Duration::from_secs(240))?;
-        let song = crate::online::to_song_info(track, &file);
-
-        let state = handle.state::<AppState>();
-        let Some(eng) = state.engine.as_ref().cloned() else {
-            return Err("playback engine unavailable".into());
-        };
-        {
-            let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-            q.push_back(song);
-            let next = q.next().ok_or("enqueue failed")?;
-            drop(q);
-            if !play_and_track(&eng, &state, next) {
-                return Err("failed to start radio playback".into());
-            }
-        }
-        Ok(())
+        let file = crate::online::resolve_stream(&track.video_id, RESOLVE_BUDGET)?;
+        start_radio_track(handle, track, &file)
     })();
 
     if let Err(e) = outcome {
@@ -270,6 +275,36 @@ fn online_radio_advance(handle: &AppHandle, seed_video_id: String) {
         );
         advance_from(handle, None, false);
     }
+}
+
+/// The background resolve budget for radio advances (total, split across
+/// attempts — see stream::resolve_stream).
+const RESOLVE_BUDGET: Duration = Duration::from_secs(240);
+
+/// Plays a picked radio track through the queue path.  Shared by the warm
+/// and live-fetch paths; `remember_radio_play` lives here so both variety
+/// memories stay in sync.
+fn start_radio_track(
+    handle: &AppHandle,
+    track: &crate::online::OnlineTrack,
+    file: &std::path::Path,
+) -> Result<(), String> {
+    crate::online::remember_radio_play(&track.video_id);
+    let song = crate::online::to_song_info(track, file);
+    let state = handle.state::<AppState>();
+    let Some(eng) = state.engine.as_ref().cloned() else {
+        return Err("playback engine unavailable".into());
+    };
+    {
+        let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
+        q.push_back(song);
+        let next = q.next().ok_or("enqueue failed")?;
+        drop(q);
+        if !play_and_track(&eng, &state, next) {
+            return Err("failed to start radio playback".into());
+        }
+    }
+    Ok(())
 }
 
 /// Plays a song and notifies the recommender's session tracker, then applies
@@ -289,7 +324,67 @@ pub(crate) fn play_and_track(
     }
     apply_normalization(eng, state, &song.id);
     preresolve_next_online(state);
+    warm_radio_next(state, &song.id);
     true
+}
+
+/// How long to wait before spending a speculative radio download — and how
+/// long the track must have genuinely been on.  Fast skip-through must not
+/// churn background downloads (a replaced warm's download can't be
+/// cancelled, so the gate is what bounds the waste).
+const WARM_DELAY: Duration = Duration::from_secs(15);
+const WARM_MIN_PLAYED_SECS: f32 = 15.0;
+
+/// Radio warmup trigger: the current track is online, nothing is queued
+/// (the radio advance IS the next step), and repeat-one is off (no advance
+/// at all).  Spawns one worker that re-checks after [`WARM_DELAY`] — the
+/// track may have been skipped meanwhile — then fetches + pre-resolves the
+/// next radio pick.  The single warm slot guards duplication.
+fn warm_radio_next(state: &tauri::State<AppState>, current_id: &str) {
+    if state.offline.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    let Some(seed) = current_id.strip_prefix("yt:").filter(|s| !s.is_empty()) else {
+        return;
+    };
+    let repeat_one = state
+        .settings
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .repeat_mode
+        == 1;
+    if repeat_one {
+        return;
+    }
+    let queued_next = state
+        .queue
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .peek_next()
+        .is_some();
+    if queued_next {
+        return; // preresolve handles queued tracks
+    }
+    let Some(eng) = state.engine.as_ref().cloned() else { return };
+    let seed = seed.to_string();
+    let spawned = std::thread::Builder::new()
+        .name("radio-warm".into())
+        .spawn(move || {
+            std::thread::sleep(WARM_DELAY);
+            // Churn gate: still the same track, still genuinely on.
+            let ps = eng.state();
+            let still_current = ps
+                .current_song
+                .as_ref()
+                .is_some_and(|s| s.id == format!("yt:{seed}"));
+            if !still_current || ps.position_secs < WARM_MIN_PLAYED_SECS - 2.0 {
+                return;
+            }
+            crate::online::radio::warm_next(seed);
+        });
+    if spawned.is_err() {
+        log::debug!("radio warm worker spawn failed");
+    }
 }
 
 /// The video id whose stream was pre-resolved most recently (single-flight:

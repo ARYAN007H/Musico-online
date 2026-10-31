@@ -30,6 +30,7 @@
 pub mod catalog;
 pub mod client;
 pub mod download;
+pub mod lyrics;
 pub mod models;
 pub mod parse;
 pub mod radio;
@@ -37,10 +38,13 @@ pub mod search;
 pub mod stream;
 
 pub use catalog::{browse, genres, home_feed};
+pub use lyrics::fetch_lyrics;
 pub use models::{BrowsePage, ItemKind, OnlineTrack, SearchResultPage, Shelf, ShelfItem};
-pub use radio::{radio_tracks, remember_radio_play};
+pub use radio::{radio_tracks, remember_radio_play, take_warm_pick, warm_next};
 pub use search::search;
-pub use stream::{clear_cache, prune_cache_to_cap, resolve_stream, to_song_info, yt_dlp_available};
+pub use stream::{
+    clear_cache, prune_cache_to_cap, resolve_stream, resolve_track, to_song_info, yt_dlp_available,
+};
 #[allow(unused_imports)]
 use stream::cached_file;
 
@@ -58,6 +62,15 @@ mod live_tests {
         let first = &page.tracks[0];
         assert!(!first.video_id.is_empty() && !first.title.is_empty());
         println!("live search: {} results, cont={:?}", page.tracks.len(), page.next_continuation.is_some());
+
+        // Repeat search must be instant (in-memory TTL cache; C6-style
+        // "cached typeahead" budget).  Also proves cache-key normalization.
+        let t = std::time::Instant::now();
+        let again = search("  DAFT   punk ONE MORE TIME ", false, None).expect("cached search");
+        assert!(t.elapsed() < std::time::Duration::from_millis(100),
+            "cached search took {:?}", t.elapsed());
+        assert_eq!(again.tracks.len(), page.tracks.len(), "variant query hit the same cache entry");
+        println!("repeat (case/whitespace variant) search: {:?} — cache hit", t.elapsed());
 
         if let Some(tok) = &page.next_continuation {
             let page2 = search("daft punk one more time", false, Some(tok)).expect("continuation");
@@ -90,6 +103,17 @@ mod live_tests {
         assert!(items.len() >= 50, "genres returned {} categories (ROADMAP C2.4 gate)", items.len());
         assert!(items.iter().all(|i| i.browse_id.is_some() && !i.title.is_empty()));
         println!("genres: {} categories — first: {:?}", items.len(), items[0].title);
+    }
+
+    /// Live lyrics: the InnerTube two-step lyrics flow must return real text
+    /// for a mainstream song (unsynced, Musixmatch-backed).
+    #[test]
+    #[ignore = "network test — run with MUSICO_LIVE_TESTS=1"]
+    fn live_lyrics_fetch() {
+        let lyrics = fetch_lyrics("dQw4w9WgXcQ").expect("lyrics for a mainstream song");
+        assert!(lyrics.len() > 120, "lyrics suspiciously short: {} chars", lyrics.len());
+        println!("lyrics: {} chars — first line: {:?}",
+            lyrics.len(), lyrics.lines().next().unwrap_or(""));
     }
 
     /// Live home feed: the Listen Now shelves (editorial + personalized).

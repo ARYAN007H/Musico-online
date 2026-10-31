@@ -335,6 +335,20 @@ fn play_song(
     if song_info.cover_art.is_some() {
         decoded_info.cover_art = song_info.cover_art.clone();
     }
+    // Catalog/library metadata wins over what the container carries whenever
+    // the caller actually knows it: yt-dlp stream-cache files are untagged, so
+    // the decoder's filename fallback would otherwise surface the raw video
+    // id as the title ("oafxkMv4xnc").  Local files agree with their own tags,
+    // so this is a no-op for the library path.
+    if !song_info.title.is_empty() {
+        decoded_info.title = song_info.title.clone();
+    }
+    if !song_info.artist.is_empty() {
+        decoded_info.artist = song_info.artist.clone();
+    }
+    if !song_info.album.is_empty() {
+        decoded_info.album = song_info.album.clone();
+    }
     let song = decoded_info;
 
     let source_sr = dec.sample_rate();
