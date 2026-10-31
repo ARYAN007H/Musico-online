@@ -27,7 +27,8 @@ rand = "0.8"
 tauri-plugin-single-instance = "2"
 tokio = { version = "1", features = ["sync", "time", "rt"] }
 # Online music: InnerTube (YT Music) search + thumbnail fetch.
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+# http2: connection reuse + header compression on the catalog endpoints.
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls", "http2"] }
 
 # System media controls: SMTC (Windows) / MPNowPlayingInfoCenter (macOS).
 [target.'cfg(not(target_os = "linux"))'.dependencies]

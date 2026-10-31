@@ -182,6 +182,11 @@ function SlimTopBar() {
    event wiring and suites depend on. */
 function TransportBar() {
   const pb = useStoreValue('playback', { hasSong: false });
+  // The expanded Now Playing view IS the player while it is open — showing
+  // the mini bar next to it duplicated every control (two players on screen).
+  // Apple Music hides the mini bar in the full player; so do we.
+  const activeView = useStoreValue('activeNav', Router.current());
+  if (activeView === 'now-playing') return null;
   const panelOpen = useStoreValue('queuePanel', false);
   const likedIds = useStoreValue('likedIds', []);
   const [scrub, setScrub] = useState(null);

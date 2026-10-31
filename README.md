@@ -69,12 +69,40 @@ Everything from the main app (Tauri shell, playback engine, recommender v2) plus
 
 Events: `online-status` (`resolving` / `playing` / `error`).
 
+## Robustness & capability notes (backend hardening pass, 2026-10-30)
+
+- **Radio without dead air** — while a `yt:` track plays (15 s+ in, nothing
+  queued), the next radio pick is fetched and pre-resolved in the background;
+  the advance becomes a cache hit instead of a fetch+download gap. Gated so
+  fast skip-through doesn't churn speculative downloads. Measured: cached
+  advance ~9 µs (budget < 1 s).
+- **Instant Home/Browse reopens** — catalog pages serve stale copies up to 6 h
+  while one background refresh per page runs; a bad re-parse can no longer
+  blank a page that has a good stale copy.
+- **Search snappiness** — identical concurrent requests share one round-trip
+  (coalesced at the client choke point); case/whitespace query variants hit
+  the same cache entry; result rows no longer scan the cache directory.
+- **Bounded failures** — click-to-play resolves with ONE 90 s attempt (the old
+  per-attempt timeout multiplied by the retry loop into ~8 min worst case);
+  queued entries with missing files are skipped quietly (≤5) instead of
+  stopping playback.
+- **Disk truth** — storage usage includes partial downloads; stale
+  `.part`/`.ytdl` sidecars are swept after 24 h (killed downloads used to leak
+  them forever); ≤ 3 concurrent yt-dlp children process-wide.
+- **Hardening** — cover-art fetches are https-only to `*.ytimg.com` with a 5 MB
+  body cap; cover filenames sanitize the song id (a hostile videoId could
+  previously traverse out of the covers dir); stream-cache matching is exact.
+
 ## Know-fragile bits
 
 - InnerTube is undocumented; a YouTube response-shape change can break parsing —
   `online.rs` logs a warning when a search parses to 0 results. Client version constant:
   `INNERTUBE_VERSION`.
 - yt-dlp itself needs frequent updates when YouTube changes stream extraction.
+- **Online-radio continuation ignores the Autoplay toggle** today: the advance
+  fires for any `yt:` track with an empty queue regardless of
+  `settings.autoplay`, while ROADMAP C1.3 says the toggle should gate it.
+  One-line fix pending a decision (the queue-panel UI owns that contract).
 
 ## Build
 

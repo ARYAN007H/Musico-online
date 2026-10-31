@@ -18,20 +18,20 @@
 <!-- Asset URLs carry ?v= — bump on frontend changes so the WebKit webview
      can't serve stale cached scripts/styles (bit us once: old bridge.js
      kept breaking IPC after an update). -->
-<link rel="stylesheet" href="css/tokens.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/neumorphic.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/animations.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/layout.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/now-playing.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/library.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/queue.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/settings.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/online.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/topbar.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/queue-panel.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/am-clean.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/liquid.css?v=0.6.14"/>
-<link rel="stylesheet" href="css/apple.css?v=0.6.14"/>
+<link rel="stylesheet" href="css/tokens.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/neumorphic.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/animations.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/layout.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/now-playing.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/library.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/queue.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/settings.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/online.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/topbar.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/queue-panel.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/am-clean.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/liquid.css?v=0.6.18"/>
+<link rel="stylesheet" href="css/apple.css?v=0.6.18"/>
 </head>
 <body>
 
@@ -170,6 +170,9 @@
             <button class="action-btn" id="btn-queue-current" title="Add to Queue" aria-label="Add to queue">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
             </button>
+            <button class="action-btn" id="btn-lyrics" title="Lyrics" aria-label="Show lyrics" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M4 12h16M4 19h10"/></svg>
+            </button>
             <button class="action-btn" id="btn-fullscreen" title="Fullscreen player" aria-label="Open fullscreen player">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/></svg>
             </button>
@@ -227,10 +230,10 @@
           <div id="lyrics-list" style="max-height:200px; overflow-y:auto; padding:0 4px;"></div>
         </div>
 
-        <!-- Recommendations -->
+        <!-- Suggested: YouTube Music's related list, auto-filled per song -->
         <div class="recs-section" id="recs-section">
-          <div class="recs-header">UP NEXT — RECOMMENDED</div>
-          <div class="recs-cards" id="recs-list">
+          <div class="recs-header">UP NEXT — SUGGESTED</div>
+          <div class="recs-cards as-rows" id="recs-list">
             <!-- Populated by JS -->
           </div>
         </div>
@@ -695,15 +698,15 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════
      JAVASCRIPT
      ═══════════════════════════════════════════════════════════════════════════ -->
-<script src="js/bridge.js?v=0.6.14"></script>
-<script src="js/app.js?v=0.6.14"></script>
+<script src="js/bridge.js?v=0.6.18"></script>
+<script src="js/app.js?v=0.6.18"></script>
   <!-- shell.js imports store/router (versioned inside the module graph);
        standalone tags removed — they created duplicate module instances -->
-  <script type="module" src="js/core/shell.js?v=0.6.14"></script>
-<script src="js/online.js?v=0.6.14"></script>
-<script src="js/vinyl.js?v=0.6.14"></script>
-<script src="js/knob.js?v=0.6.14"></script>
-<script src="js/seek.js?v=0.6.14"></script>
+  <script type="module" src="js/core/shell.js?v=0.6.18"></script>
+<script src="js/online.js?v=0.6.18"></script>
+<script src="js/vinyl.js?v=0.6.18"></script>
+<script src="js/knob.js?v=0.6.18"></script>
+<script src="js/seek.js?v=0.6.18"></script>
 
 </body>
 </html>

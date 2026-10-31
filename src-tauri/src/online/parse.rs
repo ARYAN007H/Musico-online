@@ -244,7 +244,7 @@ pub(crate) fn parse_radio_response(json: &serde_json::Value) -> Vec<OnlineTrack>
 }
 
 /// Depth-first collector for a key name anywhere in the response tree.
-fn collect_values<'a>(node: &'a serde_json::Value, key: &str, out: &mut Vec<&'a serde_json::Value>) {
+pub(crate) fn collect_values<'a>(node: &'a serde_json::Value, key: &str, out: &mut Vec<&'a serde_json::Value>) {
     match node {
         serde_json::Value::Object(map) => {
             for (k, v) in map {

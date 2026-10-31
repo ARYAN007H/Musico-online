@@ -1,11 +1,19 @@
 //! yt-dlp stream resolution: per-video locks, retry, size verification, the
 //! size-capped LRU disk cache, and post-download polish (duration probe +
 //! cover-art caching).  All blocking — callers must be on worker threads.
+//!
+//! Resource discipline:
+//! - one process-wide cap on concurrent yt-dlp children (batch self-limits,
+//!   but interactive play, pre-resolve and radio warmup spawn independently)
+//! - resolve budgets are TOTAL wall-clock bounds, split across attempts
+//!   (the old per-attempt timeout silently multiplied by the retry loop)
+//! - killed downloads leave `.part`/`.ytdl` sidecars — swept by prune, counted
+//!   by usage reporting, so failed downloads can't grow the disk forever
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, Condvar, LazyLock, Mutex, RwLock};
 use std::time::{Duration, Instant, SystemTime};
 
 use super::client::http_client;
@@ -18,6 +26,57 @@ const CACHE_MAX_BYTES: u64 = 1024 * 1024 * 1024;
 const CACHE_PRUNE_TARGET: f64 = 0.8;
 /// A downloaded file smaller than this is considered broken.
 const MIN_FILE_BYTES: u64 = 10 * 1024;
+/// Partial-download sidecars older than this are residue from killed runs
+/// (the timeout path kills yt-dlp mid-download by design) — swept by prune.
+const SIDECAR_MAX_AGE: Duration = Duration::from_secs(24 * 3600);
+/// Upper bound on a single art download — thumbnails are ~100 KB; never
+/// buffer an unbounded response body.
+const MAX_ART_BYTES: u64 = 5 * 1024 * 1024;
+
+/// Resolve attempts for background work.  Budgets are TOTAL wall-clock
+/// bounds split across attempts — a "240 s" budget is 2 × 120 s, not the
+/// ~8 min the old per-attempt timeout silently produced.
+pub(crate) const RESOLVE_ATTEMPTS: u32 = 2;
+
+/// Interactive play: ONE attempt, bounded — a wedged download must fail the
+/// click with an honest error instead of pinning "resolving" for minutes.
+pub const PLAY_RESOLVE_BUDGET: Duration = Duration::from_secs(90);
+
+/// Background resolve (queue fill, batch, radio warmup): two attempts of
+/// this length — 240 s total, matching the documented budget.
+const BG_PER_ATTEMPT: Duration = Duration::from_secs(120);
+
+/// Global cap on concurrent yt-dlp child processes.  The batch manager
+/// self-limits to 2, but interactive play, pre-resolve and radio warmup
+/// each spawn independently — without a process-wide cap they stack.
+const MAX_YT_DLP_PROCS: usize = 3;
+
+static YT_DLP_SLOTS: LazyLock<(Mutex<usize>, Condvar)> =
+    LazyLock::new(|| (Mutex::new(MAX_YT_DLP_PROCS), Condvar::new()));
+
+/// A held yt-dlp process slot; released on drop.
+struct YtDlpSlot {
+    _private: (),
+}
+
+impl Drop for YtDlpSlot {
+    fn drop(&mut self) {
+        let (lock, cv) = &*YT_DLP_SLOTS;
+        let mut free = lock.lock().unwrap_or_else(|e| e.into_inner());
+        *free += 1;
+        cv.notify_one();
+    }
+}
+
+fn acquire_yt_dlp_slot() -> YtDlpSlot {
+    let (lock, cv) = &*YT_DLP_SLOTS;
+    let mut free = lock.lock().unwrap_or_else(|e| e.into_inner());
+    while *free == 0 {
+        free = cv.wait(free).unwrap_or_else(|e| e.into_inner());
+    }
+    *free -= 1;
+    YtDlpSlot { _private: () }
+}
 
 /// Runtime cap override set from the storage settings UI (MB).  Precedence
 /// in [`cap_from`]: `MUSICO_ONLINE_CACHE_MB` env > this override > default.
@@ -53,18 +112,13 @@ fn cache_cap_bytes() -> u64 {
     )
 }
 
-/// Total bytes of completed downloads in the stream cache (partial files
-/// and yt-dlp sidecars excluded).
+/// Total bytes on disk in the stream cache — including partial-download
+/// sidecars, so the storage UI shows disk truth (the sweeper bounds them).
 pub fn cache_usage_bytes() -> u64 {
     let dir = cache_dir();
     let Ok(entries) = std::fs::read_dir(&dir) else { return 0 };
     entries
         .flatten()
-        .filter(|e| {
-            let n = e.file_name();
-            let n = n.to_string_lossy();
-            !n.ends_with(".part") && !n.ends_with(".ytdl")
-        })
         .filter_map(|e| e.metadata().ok())
         .filter(|m| m.is_file())
         .map(|m| m.len())
@@ -79,24 +133,53 @@ pub fn cache_dir() -> PathBuf {
         .join("online")
 }
 
-/// Streams-cache hit test.  Shared with the parser so search results can be
-/// badged as cached before any download happens.
+/// In-memory index of the stream cache: video id → file.  Search parsing
+/// badges every result row with `cached` — a hash lookup here replaces a
+/// directory scan per row.  Every miss still falls back to one scan, so the
+/// index cannot go stale in a way that matters; prune/clear keep it exact.
+static CACHE_INDEX: LazyLock<RwLock<HashMap<String, PathBuf>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+
+/// Stream-cache hit test.  Exact `{videoId}.` prefix — a short or empty id
+/// from a malformed response must never match another video's file.  Shared
+/// with the parser so search results can be badged as cached before any
+/// download happens.
 pub(crate) fn cached_file(video_id: &str) -> Option<PathBuf> {
-    let dir = cache_dir();
-    if let Ok(entries) = std::fs::read_dir(&dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            // Skip partial downloads and metadata sidecars.
-            if name.starts_with(video_id)
-                && !name.ends_with(".part")
-                && !name.ends_with(".ytdl")
-            {
-                return Some(entry.path());
+    if video_id.is_empty() {
+        return None;
+    }
+    let prefix = format!("{video_id}.");
+    if let Ok(index) = CACHE_INDEX.read() {
+        if let Some(path) = index.get(video_id) {
+            // Re-validate: a prune or external wipe may have removed it.
+            if path.exists() {
+                return Some(path.clone());
             }
         }
     }
-    None
+    let found = scan_dir_for(&prefix);
+    if let Ok(mut index) = CACHE_INDEX.write() {
+        match &found {
+            Some(path) => {
+                index.insert(video_id.to_string(), path.clone());
+            }
+            None => {
+                index.remove(video_id);
+            }
+        }
+    }
+    found
+}
+
+fn scan_dir_for(prefix: &str) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(cache_dir()).ok()?;
+    entries.flatten().map(|e| e.path()).find(|path| {
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| {
+                n.starts_with(prefix) && !n.ends_with(".part") && !n.ends_with(".ytdl")
+            })
+    })
 }
 
 /// Per-video download locks: two concurrent requests for the same video wait
@@ -110,21 +193,80 @@ fn video_lock(video_id: &str) -> Arc<Mutex<()>> {
         .clone()
 }
 
+/// Cached yt-dlp presence: the check spawns a process per call and resolve
+/// runs on every play — a hidden per-play cost.  Both results cached; a user
+/// who installs yt-dlp mid-session waits out the TTL (or restarts).
+const YTDLP_CHECK_TTL: Duration = Duration::from_secs(600);
+static YTDLP_CHECK: LazyLock<Mutex<Option<(Instant, bool)>>> = LazyLock::new(|| Mutex::new(None));
+
 /// Returns `true` when the yt-dlp binary is available and runnable.
 pub fn yt_dlp_available() -> bool {
-    Command::new("yt-dlp")
+    if let Ok(guard) = YTDLP_CHECK.lock() {
+        if let Some((at, ok)) = *guard {
+            if at.elapsed() < YTDLP_CHECK_TTL {
+                return ok;
+            }
+        }
+    }
+    let ok = Command::new("yt-dlp")
         .arg("--version")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
-        .is_ok()
+        .is_ok();
+    if let Ok(mut guard) = YTDLP_CHECK.lock() {
+        *guard = Some((Instant::now(), ok));
+    }
+    ok
 }
 
 /// Resolves `video_id` to a local audio file: returns the cached file when
 /// present, otherwise runs yt-dlp (best AAC, falling back to best audio).
-/// Concurrent calls for the same video are serialized; one retry covers
-/// transient extractor failures.  Blocks — call from a worker thread.
-pub fn resolve_stream(video_id: &str, timeout: Duration) -> Result<PathBuf, String> {
+/// `budget` is the TOTAL wall-clock bound, split across
+/// [`RESOLVE_ATTEMPTS`] attempts.  Concurrent calls for the same video are
+/// serialized; one retry covers transient extractor failures.  Blocks —
+/// call from a worker thread.
+pub fn resolve_stream(video_id: &str, budget: Duration) -> Result<PathBuf, String> {
+    resolve_with(video_id, RESOLVE_ATTEMPTS, budget / RESOLVE_ATTEMPTS)
+}
+
+/// Track-aware resolve: hides the cover-art fetch under the download (the
+/// thumbnail URL is in hand here, and the art must be on disk before the
+/// `Playing` event — the frontend caches a null cover forever on a miss).
+/// `interactive` selects the one-attempt bounded budget for click-to-play.
+pub fn resolve_track(track: &OnlineTrack, interactive: bool) -> Result<PathBuf, String> {
+    let cover = CoverJob::spawn(&track.song_id(), track.thumbnail.as_deref());
+    let result = if interactive {
+        resolve_with(&track.video_id, 1, PLAY_RESOLVE_BUDGET)
+    } else {
+        resolve_with(&track.video_id, RESOLVE_ATTEMPTS, BG_PER_ATTEMPT)
+    };
+    cover.join();
+    result
+}
+
+/// Joins a background cover fetch spawned alongside a download.
+struct CoverJob(Option<std::thread::JoinHandle<()>>);
+
+impl CoverJob {
+    fn spawn(song_id: &str, thumbnail: Option<&str>) -> Self {
+        let sid = song_id.to_string();
+        let url = thumbnail.map(str::to_string);
+        let handle = std::thread::Builder::new()
+            .name("online-cover".into())
+            .spawn(move || cache_cover_art(&sid, url.as_deref()))
+            .ok();
+        CoverJob(handle)
+    }
+
+    fn join(self) {
+        if let Some(handle) = self.0 {
+            let _ = handle.join();
+        }
+    }
+}
+
+fn resolve_with(video_id: &str, attempts: u32, per_attempt: Duration) -> Result<PathBuf, String> {
     let _guard = video_lock(video_id);
 
     if !yt_dlp_available() {
@@ -140,11 +282,13 @@ pub fn resolve_stream(video_id: &str, timeout: Duration) -> Result<PathBuf, Stri
     let url = format!("https://www.youtube.com/watch?v={video_id}");
 
     let mut last_err = String::new();
-    for attempt in 0..2 {
+    for attempt in 0..attempts {
         if attempt > 0 {
             std::thread::sleep(Duration::from_millis(600));
         }
-        match run_yt_dlp(&url, &template, timeout) {
+        // Held for the attempt's whole run — the process-wide child cap.
+        let _slot = acquire_yt_dlp_slot();
+        match run_yt_dlp(&url, &template, per_attempt) {
             Ok(()) => {}
             Err(e) => {
                 last_err = e;
@@ -214,38 +358,64 @@ fn run_yt_dlp(url: &str, template: &Path, timeout: Duration) -> Result<(), Strin
 }
 
 /// LRU-prunes the stream cache to the cap by mtime (oldest first), keeping
-/// everything above the hysteresis target.  Returns bytes freed.
+/// everything above the hysteresis target.  Also sweeps stale `.part`/`.ytdl`
+/// sidecars from killed downloads (they never count toward the LRU math but
+/// must not accumulate forever).  Returns bytes freed.
 pub fn prune_cache(max_bytes: u64) -> u64 {
     let dir = cache_dir();
     let Ok(entries) = std::fs::read_dir(&dir) else { return 0 };
+    let sidecar_cutoff = SystemTime::now() - SIDECAR_MAX_AGE;
 
-    let mut files: Vec<(PathBuf, u64, SystemTime)> = entries
-        .flatten()
-        .filter(|e| {
-            let name = e.file_name();
-            let n = name.to_string_lossy();
-            !n.ends_with(".part") && !n.ends_with(".ytdl")
-        })
-        .filter_map(|e| {
-            let meta = e.metadata().ok()?;
-            Some((e.path(), meta.len(), meta.modified().ok()?))
-        })
-        .collect();
+    let mut files: Vec<(PathBuf, u64, SystemTime)> = Vec::new();
+    let mut swept: Vec<(PathBuf, u64)> = Vec::new();
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let n = name.to_string_lossy();
+        let Ok(meta) = entry.metadata() else { continue };
+        if !meta.is_file() {
+            continue;
+        }
+        if n.ends_with(".part") || n.ends_with(".ytdl") {
+            if meta.modified().ok().is_some_and(|m| m < sidecar_cutoff) {
+                swept.push((entry.path(), meta.len()));
+            }
+            continue;
+        }
+        let Some(mtime) = meta.modified().ok() else { continue };
+        files.push((entry.path(), meta.len(), mtime));
+    }
+    let mut swept_bytes = 0u64;
+    for (path, size) in &swept {
+        if std::fs::remove_file(path).is_ok() {
+            swept_bytes += size;
+        }
+    }
+    if swept_bytes > 0 {
+        log::info!("Swept {} KB of stale download sidecars", swept_bytes / 1024);
+    }
 
     let total: u64 = files.iter().map(|(_, s, _)| s).sum();
-    if total <= max_bytes {
-        return 0;
-    }
-    let target = (max_bytes as f64 * CACHE_PRUNE_TARGET) as u64;
+    let mut freed = swept_bytes;
+    if total > max_bytes {
+        let target = (max_bytes as f64 * CACHE_PRUNE_TARGET) as u64;
 
-    files.sort_by_key(|(_, _, mtime)| *mtime); // oldest first
-    let mut freed = 0u64;
-    for (path, size, _) in files {
-        if total - freed <= target {
-            break;
+        files.sort_by_key(|(_, _, mtime)| *mtime); // oldest first
+        let mut lru_freed = 0u64;
+        let mut pruned_paths = Vec::new();
+        for (path, size, _) in files {
+            if total - lru_freed <= target {
+                break;
+            }
+            if std::fs::remove_file(&path).is_ok() {
+                lru_freed += size;
+                pruned_paths.push(path);
+            }
         }
-        if std::fs::remove_file(&path).is_ok() {
-            freed += size;
+        freed += lru_freed;
+        if !pruned_paths.is_empty() {
+            if let Ok(mut index) = CACHE_INDEX.write() {
+                index.retain(|_, v| !pruned_paths.contains(v));
+            }
         }
     }
     if freed > 0 {
@@ -265,6 +435,9 @@ pub fn clear_cache() -> Result<u64, String> {
             }
             let _ = std::fs::remove_file(entry.path());
         }
+    }
+    if let Ok(mut index) = CACHE_INDEX.write() {
+        index.clear();
     }
     Ok(freed)
 }
@@ -303,10 +476,29 @@ pub fn probe_duration_secs(path: &Path) -> Option<f32> {
         .filter(|d| *d > 0.0)
 }
 
+/// Art may only come from YouTube's image CDN over https — the URL arrives
+/// from response JSON, and this client must never be pointed elsewhere.
+fn is_safe_art_url(url: &str) -> bool {
+    match reqwest::Url::parse(url) {
+        Ok(parsed) => {
+            parsed.scheme() == "https"
+                && parsed
+                    .host_str()
+                    .is_some_and(|h| h == "ytimg.com" || h.ends_with(".ytimg.com"))
+        }
+        Err(_) => false,
+    }
+}
+
 /// Downloads the track thumbnail into the shared cover cache so get_cover /
-/// vinyl label / MPRIS art all work for online songs.  Best-effort.
+/// vinyl label / MPRIS art all work for online songs.  Best-effort.  The
+/// response body is size-capped ([`MAX_ART_BYTES`]) before it hits disk.
 pub fn cache_cover_art(song_id: &str, thumbnail: Option<&str>) {
     let Some(url) = thumbnail else { return };
+    if !is_safe_art_url(url) {
+        log::debug!("cover art url rejected (not an https ytimg url)");
+        return;
+    }
     let cover = crate::scanner::cover_path(song_id);
     if cover.exists() {
         return;
@@ -316,19 +508,23 @@ pub fn cache_cover_art(song_id: &str, thumbnail: Option<&str>) {
         return;
     }
     let Ok(client) = http_client() else { return };
-    let Ok(resp) = client.get(url).timeout(Duration::from_secs(8)).send() else { return };
+    let Ok(mut resp) = client.get(url).timeout(Duration::from_secs(8)).send() else { return };
     if !resp.status().is_success() {
         return;
     }
-    if let Ok(bytes) = resp.bytes() {
-        if bytes.len() > 1024 {
-            let _ = std::fs::write(&cover, &bytes);
-        }
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    if resp.take(MAX_ART_BYTES + 1).read_to_end(&mut bytes).is_err() {
+        return;
+    }
+    if bytes.len() > 1024 && (bytes.len() as u64) <= MAX_ART_BYTES {
+        let _ = std::fs::write(&cover, &bytes);
     }
 }
 
 /// Builds the final SongInfo for the engine: probes duration when the search
-/// metadata lacked it, and warms the cover cache.
+/// metadata lacked it, and warms the cover cache (a no-op when
+/// [`resolve_track`] already fetched it under the download).
 pub fn to_song_info(track: &OnlineTrack, file_path: &Path) -> SongInfo {
     let duration = track
         .duration_secs
@@ -373,9 +569,101 @@ mod cap_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// These tests share the REAL cache dir with each other (and the prune
+    /// test's byte-count assertions) — cargo runs test threads in parallel,
+    /// so every test that writes or counts cache files holds this gate.
+    static CACHE_DIR_GATE: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    #[test]
+    fn cached_file_matches_exact_prefix_only() {
+        let _gate = CACHE_DIR_GATE.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = cache_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        let a = dir.join("exactmatch1.m4a");
+        let b = dir.join("exactmatch12.m4a");
+        std::fs::write(&a, b"data").unwrap();
+        std::fs::write(&b, b"data").unwrap();
+
+        let hit = cached_file("exactmatch1").expect("exact file found");
+        assert!(hit.ends_with("exactmatch1.m4a"), "wrong file matched: {hit:?}");
+        // Repeat hit comes from the index and must be identical.
+        assert_eq!(cached_file("exactmatch1"), Some(hit));
+        // A shorter id never resolves onto another video's file.
+        assert!(cached_file("exactmatch").is_none());
+        // Empty ids match nothing (the old starts_with("") matched everything).
+        assert!(cached_file("").is_none());
+
+        let _ = std::fs::remove_file(&a);
+        let _ = std::fs::remove_file(&b);
+        // Post-cleanup, the index must not resurrect the deleted file.
+        assert!(cached_file("exactmatch1").is_none());
+    }
+
+    #[test]
+    fn stale_sidecars_are_swept_fresh_survive() {
+        let _gate = CACHE_DIR_GATE.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = cache_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let stale = dir.join("sidetest.m4a.part");
+        std::fs::write(&stale, vec![0u8; 2048]).unwrap();
+        let old = SystemTime::now() - Duration::from_secs(25 * 3600);
+        {
+            let f = std::fs::File::options().write(true).open(&stale).unwrap();
+            f.set_times(std::fs::FileTimes::new().set_modified(old)).unwrap();
+        }
+        let fresh = dir.join("sidetest_fresh.m4a.part");
+        std::fs::write(&fresh, vec![0u8; 2048]).unwrap();
+
+        // Cap far above any real content — only the sweep can free bytes.
+        let freed = prune_cache(u64::MAX / 2);
+        assert!(freed >= 2048, "stale sidecar swept, freed {freed}");
+        assert!(!stale.exists(), "stale sidecar removed");
+        assert!(fresh.exists(), "live download's sidecar untouched");
+        let _ = std::fs::remove_file(&fresh);
+    }
+
+    #[test]
+    fn yt_dlp_slots_cap_concurrency() {
+        // Drain all slots, confirm a 4th acquisition blocks, then release.
+        let s1 = acquire_yt_dlp_slot();
+        let s2 = acquire_yt_dlp_slot();
+        let s3 = acquire_yt_dlp_slot();
+        let acquired = Arc::new(AtomicUsize::new(0));
+        let a2 = acquired.clone();
+        let h = std::thread::spawn(move || {
+            let _p = acquire_yt_dlp_slot();
+            a2.fetch_add(1, Ordering::SeqCst);
+        });
+        std::thread::sleep(Duration::from_millis(120));
+        assert_eq!(acquired.load(Ordering::SeqCst), 0, "4th yt-dlp child must wait");
+        drop(s1);
+        h.join().expect("waiter proceeds after a slot frees");
+        drop(s2);
+        drop(s3);
+        // Churn restores full capacity (Condvar wakeup regression guard).
+        for _ in 0..MAX_YT_DLP_PROCS * 2 {
+            let _p = acquire_yt_dlp_slot();
+        }
+    }
+
+    #[test]
+    fn art_urls_are_allowlisted() {
+        assert!(is_safe_art_url("https://i.ytimg.com/vi/abc/maxresdefault.jpg"));
+        assert!(is_safe_art_url("https://ytimg.com/x.jpg"));
+        assert!(!is_safe_art_url("http://i.ytimg.com/vi/abc/x.jpg"), "https only");
+        assert!(!is_safe_art_url("https://evil.example.com/a.jpg"));
+        assert!(!is_safe_art_url("file:///etc/passwd"));
+        assert!(!is_safe_art_url("not a url"));
+        // A lookalike host must not pass the suffix check.
+        assert!(!is_safe_art_url("https://evilytimg.com/a.jpg"));
+    }
 
     #[test]
     fn prune_cache_respects_cap_and_removes_oldest() {
+        let _gate = CACHE_DIR_GATE.lock().unwrap_or_else(|e| e.into_inner());
         let dir = cache_dir();
         std::fs::create_dir_all(&dir).unwrap();
         let old = dir.join("pruneold.m4a");

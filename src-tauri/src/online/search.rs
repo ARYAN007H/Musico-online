@@ -17,6 +17,13 @@ const SEARCH_TTL: Duration = Duration::from_secs(300);
 /// Search cache entry cap (cleared wholesale when exceeded).
 const SEARCH_CACHE_CAP: usize = 64;
 
+/// Cache-key normalization: case/whitespace variants of a query are one
+/// search ("Daft Punk", "daft punk ", "DAFT  PUNK" share an entry).  What is
+/// *sent* to InnerTube is unchanged — only the cache key collapses.
+fn cache_key(query: &str) -> String {
+    query.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+}
+
 /// Searches YouTube Music.  Pass `continuation` (from a previous page's
 /// `next_continuation`) to fetch the next page.  First pages are cached for
 /// 5 minutes — repeated searches are instant.
@@ -31,7 +38,7 @@ pub fn search(
 
     // Continuation pages bypass the cache (each page is requested once anyway).
     if continuation.is_none() {
-        if let Some(page) = search_cache_get(query, videos) {
+        if let Some(page) = search_cache_get(&cache_key(query), videos) {
             return Ok(page);
         }
     }
@@ -54,7 +61,7 @@ pub fn search(
         log::warn!("InnerTube search parsed 0 results for {query:?} — API shape may have changed");
     }
     if continuation.is_none() {
-        search_cache_put(query, videos, &page);
+        search_cache_put(&cache_key(query), videos, &page);
     }
     Ok(page)
 }
@@ -104,5 +111,14 @@ mod tests {
         let got = search_cache_get("cache test", false).expect("hit");
         assert_eq!(got.tracks[0].video_id, "c1");
         assert!(search_cache_get("different query", false).is_none());
+    }
+
+    #[test]
+    fn cache_key_collapses_case_and_whitespace() {
+        assert_eq!(cache_key("Daft Punk"), cache_key("daft punk"));
+        assert_eq!(cache_key("  daft   PUNK  "), cache_key("daft punk"));
+        assert_eq!(cache_key("Daft  Punk "), "daft punk");
+        // Distinct queries stay distinct.
+        assert_ne!(cache_key("daft punk"), cache_key("daft punkk"));
     }
 }

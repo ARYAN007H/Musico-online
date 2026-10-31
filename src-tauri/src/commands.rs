@@ -814,7 +814,7 @@ pub async fn online_play(
         serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
     );
 
-    let file = resolve_online_track(&handle, &track, false).await?;
+    let file = resolve_online_track(&handle, &track, false, true).await?;
 
     let _ = handle.emit(
         "online-status",
@@ -842,15 +842,18 @@ pub async fn online_play(
 /// Resolve an online track to a local file, emitting `online-status`
 /// progress events. Shared by every online play/queue command.  `quiet`
 /// skips the error event — downloads report failure via `download-state`
-/// instead (a triple toast helped nobody).
+/// instead (a triple toast helped nobody).  `interactive` = click-to-play:
+/// a single bounded attempt so a wedged download fails the click with an
+/// honest error instead of pinning "resolving" for minutes.
 async fn resolve_online_track(
     handle: &AppHandle,
     track: &OnlineTrack,
     quiet: bool,
+    interactive: bool,
 ) -> Result<std::path::PathBuf, String> {
-    let video_id = track.video_id.clone();
+    let owned = track.clone();
     let file = tauri::async_runtime::spawn_blocking(move || {
-        crate::online::resolve_stream(&video_id, std::time::Duration::from_secs(240))
+        crate::online::resolve_track(&owned, interactive)
     })
     .await
     .map_err(|e| format!("resolve task failed: {e}"))?;
@@ -883,7 +886,7 @@ pub async fn online_enqueue(
         serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
     );
 
-    let file = resolve_online_track(&handle, &track, false).await?;
+    let file = resolve_online_track(&handle, &track, false, false).await?;
 
     let song = crate::online::to_song_info(&track, &file);
     state
@@ -909,7 +912,7 @@ pub async fn online_play_next(
         serde_json::json!({ "stage": "resolving", "videoId": track.video_id, "title": track.title }),
     );
 
-    let file = resolve_online_track(&handle, &track, false).await?;
+    let file = resolve_online_track(&handle, &track, false, false).await?;
 
     let song = crate::online::to_song_info(&track, &file);
     state
@@ -965,7 +968,7 @@ pub async fn online_download(
         serde_json::json!({ "videoId": track.video_id, "stage": "resolving", "title": track.title }),
     );
 
-    let result = match resolve_online_track(&handle, &track, true).await {
+    let result = match resolve_online_track(&handle, &track, true, false).await {
         Ok(_) => Ok(()),
         Err(e) => Err(e),
     };
@@ -1050,6 +1053,31 @@ pub async fn online_browse(
 #[tauri::command]
 pub fn online_available() -> bool {
     crate::online::yt_dlp_available()
+}
+
+/// Related tracks for a song — the Suggested shelf in the expanded player.
+/// Same engine as online radio (`next` on the seed), shuffled, seed excluded.
+#[tauri::command]
+pub async fn online_related(
+    state: State<'_, AppState>,
+    video_id: String,
+) -> Result<Vec<OnlineTrack>, String> {
+    ensure_online(&state)?;
+    tauri::async_runtime::spawn_blocking(move || crate::online::radio_tracks(&video_id))
+        .await
+        .map_err(|e| format!("related task failed: {e}"))?
+}
+
+/// YTM lyrics for a song (unsynced plain text; None when unavailable).
+#[tauri::command]
+pub async fn online_lyrics(
+    state: State<'_, AppState>,
+    video_id: String,
+) -> Result<Option<String>, String> {
+    ensure_online(&state)?;
+    tauri::async_runtime::spawn_blocking(move || Ok(crate::online::fetch_lyrics(&video_id)))
+        .await
+        .map_err(|e| format!("lyrics task failed: {e}"))?
 }
 
 /// Wipe the downloaded-stream cache.  Returns bytes freed.
